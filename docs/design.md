@@ -135,7 +135,7 @@ deltas maplibre-native-ffi's C API takes.
 ## What Exact would need to change
 
 Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `24648619`.
-Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://github.com/expo/exact/issues/426) (2, 3), [#427](https://github.com/expo/exact/issues/427) (1) and [#428](https://github.com/expo/exact/issues/428) (4).
+Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://github.com/expo/exact/issues/426) (2, 3), [#427](https://github.com/expo/exact/issues/427) (1) and [#428](https://github.com/expo/exact/issues/428) (4) and [#743](https://github.com/expo/exact/issues/743) (11).
 
 1. **A package can't ship a GPU surface.** Surfaces are registered in the app's own `gpu/` crate, so
    each app writes a three-line registry naming `maplibre_exact::mln::surface`. A package that could
@@ -170,7 +170,9 @@ Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://git
     captures each child on the CPU ([`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches)), which costs little for
     children the size of markers.
 11. **A GPU surface on Android gets neither the app's Java VM nor its context**, which mln-rs 0.0.12
-    needs to fetch over `HttpURLConnection`, so the map loads no style there.
+    needs to fetch over `HttpURLConnection`, else the map loads no style there
+    ([#743](https://github.com/expo/exact/issues/743)). The surface finds the VM with
+    `JNI_GetCreatedJavaVMs` and the app with `ActivityThread.currentApplication()`, a hidden API.
 
 ## What mln-rs would need
 

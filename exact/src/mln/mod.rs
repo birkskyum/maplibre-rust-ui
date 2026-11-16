@@ -7,6 +7,8 @@
 //! is given, which Exact submits after. The surface asks for frames while the
 //! map loads, animates or follows a gesture, and for none once it is idle.
 
+#[cfg(target_os = "android")]
+mod android;
 mod blit;
 mod input;
 mod markers;
@@ -87,6 +89,8 @@ impl Surface for MapSurface {
         let viewport = viewport(frame);
         let pixels = pixels(frame);
         if self.engine.is_none() {
+            #[cfg(target_os = "android")]
+            android::init();
             let texture = MapTexture::new(device, pixels);
             let shared = Device::WebGpu(maplibre_rust_ui::webgpu::Device::from_wgpu(
                 None,
