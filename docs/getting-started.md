@@ -2,12 +2,12 @@
 
 ## The checkouts
 
-The crates find mln-rs by path, as a checkout next to this repository (`../mln-rs`), at the commit CI
-builds against, `1102a74c`. The core builds and tests on its own:
+The crates find mln-rs by path, as a checkout next to this repository (`../mln-rs`), at the release
+the core depends on, `v0.0.12`. The core builds and tests on its own:
 
 ```sh
 git clone https://github.com/birkskyum/maplibre-rust-ui
-git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-rust-ui 1102a74c
+git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-rust-ui v0.0.12
 cd maplibre-rust-ui/core && cargo test
 ```
 

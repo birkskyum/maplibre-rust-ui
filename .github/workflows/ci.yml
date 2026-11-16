@@ -1,5 +1,5 @@
-# Builds, lints and tests the core and each host against mln-rs at the
-# commit the hosts build on. Exact's host builds only through Exact's own
+# Builds, lints and tests the core and each host against the mln-rs
+# release the core depends on. Exact's host builds only through Exact's own
 # tooling, so it isn't here.
 name: CI
 
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MLN_RS: 1102a74c3c03039179feb1d9d182430a8264927f
+  MLN_RS: v0.0.12
   # GPUI from Zed's repository, with the change in gpui/patches/zed.
   ZED: dc93abce2fa6c0bf349d425310db4884aa953467
   CARGO_TERM_COLOR: always

@@ -27,11 +27,11 @@ An early prototype.
 
 ## Building
 
-The crates find mln-rs by path, as a checkout next to this repository (`../mln-rs`), at `1102a74c`. The
-core builds and tests on its own:
+The crates find mln-rs by path, as a checkout next to this repository (`../mln-rs`), at its
+release `v0.0.12`. The core builds and tests on its own:
 
 ```sh
-git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-rust-ui 1102a74c
+git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-rust-ui v0.0.12
 cd maplibre-rust-ui/core && cargo test
 ```
 

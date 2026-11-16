@@ -80,6 +80,7 @@ fn at(a: f64, b: f64, c: f64, d: f64, tx: f64, ty: f64) -> Placement {
 
 #[cfg(test)]
 mod tests {
+    use mln_actor::RunLoop;
     use mln_map::{CameraOptions, Map, MapOptions};
     use mln_util::size::Size;
 
@@ -90,7 +91,7 @@ mod tests {
     /// pitched as given.
     fn map(bearing: f64, pitch: f64) -> MapProjection {
         let options = MapOptions { size: Size::new(400, 300), pixel_ratio: 1.0, ..MapOptions::default() };
-        let mut map = Map::new(options).unwrap();
+        let mut map = Map::new(options, &RunLoop::new()).unwrap();
         map.jump_to(&CameraOptions {
             center: LatLng::new(0.0, 0.0).ok(),
             zoom: Some(2.0),

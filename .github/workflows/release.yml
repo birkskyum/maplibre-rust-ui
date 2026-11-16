@@ -18,8 +18,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # The commit ci.yml builds against.
-  MLN_RS: 1102a74c3c03039179feb1d9d182430a8264927f
+  # The mln-rs release ci.yml builds against.
+  MLN_RS: v0.0.12
   CARGO_TERM_COLOR: always
 
 jobs:

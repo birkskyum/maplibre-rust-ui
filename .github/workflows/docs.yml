@@ -1,5 +1,5 @@
 # Builds the docs site with Zensical and the core's API docs with rustdoc,
-# against mln-rs at the commit CI builds on, and publishes both on GitHub
+# against the mln-rs release CI builds on, and publishes both on GitHub
 # Pages, the API docs under api/.
 name: Docs
 
@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MLN_RS: 1102a74c3c03039179feb1d9d182430a8264927f
+  MLN_RS: v0.0.12
   CARGO_TERM_COLOR: always
 
 jobs:

@@ -62,7 +62,7 @@ exact_gpu::module!(REGISTRY);
 
 Clone Exact and mln-rs next to this repository and apply the patches in
 [`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches) to Exact, on
-the commits this was last built on, Exact `09824dea` and mln-rs `1102a74c`. The patches are five.
+the commits this was last built on, Exact `09824dea` and mln-rs `v0.0.12`. The patches are five.
 
 1. Rust 1.99.1, since mln-rs needs 1.98.
 2. Exact's crates take any ureq from 3.4, since mln-rs takes 3.5 and Exact pins 3.4
@@ -73,7 +73,7 @@ the commits this was last built on, Exact `09824dea` and mln-rs `1102a74c`. The 
 5. Contract's lowering takes icu_locale 2.4, which mln-rs takes.
 
 ```sh
-git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-exact 1102a74c
+git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-exact v0.0.12
 git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 09824dea
 git -C exact am "$PWD"/maplibre-rust-ui/exact/patches/exact/*.patch
 bun exact/scripts/exact.mjs setup
