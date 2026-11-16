@@ -14,6 +14,10 @@ a trackpad's scroll, pinch and rotation, and touches.
 
 ## Using it
 
+```sh
+cargo add maplibre-egui
+```
+
 An eframe app renders with wgpu, keeps an `EguiMap` and shows it with the renderer's state:
 
 ```rust

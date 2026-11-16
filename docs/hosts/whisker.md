@@ -32,6 +32,10 @@ map's record, and sends commands through a `MapHandle`. A click is `on_map_click
 
 ## Using it
 
+```sh
+cargo add maplibre-whisker
+```
+
 ```rust
 let map = MapHandle::new();
 render! {

@@ -21,6 +21,10 @@ commands such as `flyTo` and `fitBounds`, and hears of its events, each with the
 
 ## Using it
 
+```sh
+cargo add maplibre-nsh
+```
+
 The app registers the map in its `#[native_components(macos)]` and `#[native_components(ios)]`
 functions, which the hosts `nsh run` and `nsh package` build call, or before it runs on its own:
 

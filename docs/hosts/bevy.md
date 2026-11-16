@@ -15,6 +15,10 @@ input of the app's own.
 
 ## Using it
 
+```sh
+cargo add maplibre-bevy
+```
+
 ```rust
 App::new()
     .add_plugins((DefaultPlugins, MapLibrePlugin))

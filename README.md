@@ -8,6 +8,9 @@ options, all in JSON with MapLibre GL JS's names. The app sends the map commands
 `fitBounds`, hears of events such as `click` and `moveend`, and reads the map's record. That side
 looks the same whichever framework hosts the map.
 
+The core and the Slint, egui, Bevy, Native Shell and Whisker hosts are on crates.io, so an app adds
+its framework's host with `cargo add maplibre-slint` or the like.
+
 **[The docs](https://birkskyum.github.io/maplibre-rust-ui/)** have how to use it, [the map model](https://birkskyum.github.io/maplibre-rust-ui/model/), each host, and
 [how it works](https://birkskyum.github.io/maplibre-rust-ui/design/).
 

@@ -1,9 +1,23 @@
 # Getting started
 
+## Adding a map to an app
+
+The core and the Slint, egui, Bevy, Native Shell and Whisker hosts are on crates.io. An app adds its
+framework's host, which brings the core and mln-rs with it:
+
+```sh
+cargo add maplibre-slint    # or maplibre-egui, maplibre-bevy, maplibre-nsh, maplibre-whisker
+```
+
+They build with Rust 1.98 or later, as mln-rs does. The GPUI and Exact hosts aren't published, since
+they build on a changed GPUI and a patched Exact, so an app takes them from a checkout of this
+repository.
+
 ## The checkouts
 
-The crates find mln-rs by path, as a checkout next to this repository (`../mln-rs`), at the release
-the core depends on, `v0.0.12`. The core builds and tests on its own:
+To work on the crates or run the examples, check out mln-rs next to this repository (`../mln-rs`), at
+the release the core depends on, `v0.0.12`. The crates find it there by path, and the core builds and
+tests on its own:
 
 ```sh
 git clone https://github.com/birkskyum/maplibre-rust-ui

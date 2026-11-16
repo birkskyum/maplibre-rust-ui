@@ -13,6 +13,10 @@ so shift-drag to zoom to a box and ctrl-drag to rotate work.
 
 ## Using it
 
+```sh
+cargo add maplibre-slint
+```
+
 The app's UI imports the map and its global from the library this crate ships, and exports the global
 and the struct of markers' places:
 
