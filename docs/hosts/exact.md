@@ -29,6 +29,8 @@ canvas surface=maplibre(style="https://tiles.openfreemap.org/styles/liberty", lo
 - `options` limits the camera and turns gestures off, with GL JS's `MapOptions` names (`minZoom`,
   `maxZoom`, `minPitch`, `maxPitch`, `maxBounds`, `interactive`, `dragRotate`, `pitchWithRotate`,
   `touchPitch`, `scrollZoom`).
+- The map takes the mouse with its modifier keys, a trackpad's scroll and pinch, and touches, with GL
+  JS's gestures.
 - The map posts the events `events` lists (`load`, `moveend`, `click`, `contextmenu`, `error`) to
   the canvas's `message=` action, as GL JS's `map.on` subscribes to them. `contextmenu` is a
   secondary click or a long press.
@@ -60,21 +62,15 @@ exact_gpu::module!(REGISTRY);
 
 ## Running the example
 
-Clone Exact and mln-rs next to this repository and apply the patches in
+Clone Exact and mln-rs next to this repository and apply the patch in
 [`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches) to Exact, on
-the commits this was last built on, Exact `09824dea` and mln-rs `v0.0.12`. The patches are five.
-
-1. Rust 1.99.1, since mln-rs needs 1.98.
-2. Exact's crates take any ureq from 3.4, since mln-rs takes 3.5 and Exact pins 3.4
-   ([expo/exact#426](https://github.com/expo/exact/issues/426)).
-3. ibex2 builds against ureq 3.5, whose `NextTimeout` gained two fields.
-4. Each child of a canvas is captured on the CPU on iOS, since the GPU capture gives markers blank or
-   wrong pixels ([expo/exact#425](https://github.com/expo/exact/issues/425)).
-5. Contract's lowering takes icu_locale 2.4, which mln-rs takes.
+the commits this was last built on, Exact `24648619` and mln-rs `v0.0.12`. The patch captures each
+child of a canvas on the CPU on iOS, since the GPU capture gives markers blank or wrong pixels
+([expo/exact#425](https://github.com/expo/exact/issues/425)).
 
 ```sh
 git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-exact v0.0.12
-git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 09824dea
+git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 24648619
 git -C exact am "$PWD"/maplibre-rust-ui/exact/patches/exact/*.patch
 bun exact/scripts/exact.mjs setup
 ```

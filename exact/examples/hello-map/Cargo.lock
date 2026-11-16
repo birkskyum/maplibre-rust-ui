@@ -402,10 +402,10 @@ dependencies = [
  "contract-lower",
  "contract-syntax",
  "contract-types",
+ "exact-forma",
  "exact-kernel",
  "exact-plan",
  "exact-runner",
- "exact-tamber",
  "libc",
  "serde_json",
  "sha2 0.10.9",
@@ -413,6 +413,15 @@ dependencies = [
 
 [[package]]
 name = "contract-analyze"
+version = "0.1.0"
+dependencies = [
+ "contract-checking",
+ "contract-syntax",
+ "contract-types",
+]
+
+[[package]]
+name = "contract-checking"
 version = "0.1.0"
 dependencies = [
  "contract-syntax",
@@ -424,15 +433,17 @@ name = "contract-lower"
 version = "0.1.0"
 dependencies = [
  "contract-analyze",
+ "contract-checking",
  "contract-syntax",
  "contract-types",
  "exact-color",
+ "exact-forma",
  "exact-kernel",
  "exact-motion",
  "exact-num",
  "exact-plan",
  "exact-route",
- "exact-tamber",
+ "exact-svg-file",
  "icu_locale",
  "serde_json",
  "sha2 0.10.9",
@@ -1044,6 +1055,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "exact-forma"
+version = "0.1.0"
+dependencies = [
+ "exact-color",
+ "exact-motion",
+ "exact-num",
+ "exact-plan",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "exact-gpu"
 version = "0.1.0"
 dependencies = [
@@ -1198,6 +1221,7 @@ dependencies = [
 name = "exact-logic"
 version = "0.1.0"
 dependencies = [
+ "exact-data",
  "exact-logic-abi",
  "exact-plan",
  "exact-runner",
@@ -1273,6 +1297,7 @@ dependencies = [
  "iana-time-zone",
  "ibex2",
  "jni-sys 0.3.1",
+ "jpeg-encoder",
  "libc",
  "libloading",
  "memmap2",
@@ -1356,18 +1381,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "exact-tamber"
-version = "0.1.0"
-dependencies = [
- "exact-color",
- "exact-motion",
- "exact-num",
- "exact-plan",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "exact-textflow"
 version = "0.1.0"
 dependencies = [
@@ -1380,8 +1393,24 @@ name = "exact-update"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
+ "libc",
  "serde_json",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "exact-ureq"
+version = "3.4.0"
+dependencies = [
+ "base64 0.23.1",
+ "log",
+ "percent-encoding",
+ "rustls",
+ "rustls-pki-types",
+ "rustls-platform-verifier",
+ "ureq-proto 0.6.5",
+ "utf8-zero",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2247,17 +2276,19 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "cc",
+ "exact-ureq",
  "form_urlencoded",
  "getrandom 0.2.17",
  "hermes-lean-sys",
+ "jni",
  "libc",
  "mio",
  "rustls",
  "rustls-native-certs 0.7.3",
+ "rustls-platform-verifier",
  "serde_json",
  "sha2 0.10.9",
  "socket2",
- "ureq",
  "url",
  "webpki-roots",
  "windows-sys 0.61.2",
@@ -2267,6 +2298,7 @@ dependencies = [
 name = "ibex2-sqlite"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "ibex2",
  "rusqlite",
 ]
@@ -2709,6 +2741,12 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "jpeg-encoder"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0370574b86f7eca156b9f298392b5e69a23f8c86f3f865add60bbc2e79467a6"
 
 [[package]]
 name = "js-sys"
@@ -4457,9 +4495,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-platform-verifier"
-version = "0.7.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1167586491e2b18b8bfbb293e8180ec17c201c4f076d7cb3070ca964e7598f98"
+checksum = "26d1e2536ce4f35f4846aa13bff16bd0ff40157cdb14cc056c7b14ba41233ba0"
 dependencies = [
  "core-foundation 0.10.1",
  "core-foundation-sys",
@@ -4478,9 +4516,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-platform-verifier-android"
-version = "0.2.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eec689c0bc40ff2458a5977b6619cb718087084a18e02a131c599b62d05e1a5f"
+checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
 
 [[package]]
 name = "rustls-webpki"
@@ -5230,9 +5268,21 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "rustls-platform-verifier",
- "ureq-proto",
+ "ureq-proto 0.7.1",
  "utf8-zero",
  "webpki-roots",
+]
+
+[[package]]
+name = "ureq-proto"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "841583fc36089d7d59419568ae157f43a5a03a2e5a81ba87c77d1596ef46e922"
+dependencies = [
+ "base64 0.23.1",
+ "http",
+ "httparse",
+ "log",
 ]
 
 [[package]]

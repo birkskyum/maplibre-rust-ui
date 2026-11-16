@@ -134,24 +134,21 @@ deltas maplibre-native-ffi's C API takes.
 
 ## What Exact would need to change
 
-Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `09824dea`.
+Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `24648619`.
 Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://github.com/expo/exact/issues/426) (2, 3), [#427](https://github.com/expo/exact/issues/427) (1) and [#428](https://github.com/expo/exact/issues/428) (4).
 
 1. **A package can't ship a GPU surface.** Surfaces are registered in the app's own `gpu/` crate, so
    each app writes a three-line registry naming `maplibre_exact::mln::surface`. A package that could
    declare a surface, as it declares a view, would make the map a dependency and nothing more.
-2. **Rust 1.97.0 is pinned and enforced.** The build refuses an app whose toolchain differs from the
-   checkout's. mln-rs and its `mlt-core` dependency need 1.98, so the prototype moves its Exact
-   checkout to 1.99.1 ([`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches)).
-3. **Exact version pins in vendored crates.** `hermes-lean-sys`, `ibex2` and the Hermes installer
-   require `ureq = "=3.4.0"`, because `ibex2` uses ureq's `unversioned` transport API, which changes
-   between minor versions. mln-rs needs `^3.5.1`, which Cargo resolves even on Apple platforms, where
-   mln-rs never compiles ureq. With the pins relaxed, `ibex2` needs one line for ureq 3.5
-   (`NextTimeout` gained two fields), in [`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches). The web build's
-   wasm-bindgen CLI is 0.2.127 and refuses the 0.2.130 mln-rs pins.
-4. **No modifier keys on pointer and wheel events, and no platform pinch.** Shift-drag to box-zoom,
-   Ctrl-drag to rotate and a trackpad's magnify and rotate can't be recognized. Two-finger touch
-   pinch works.
+2. **Rust 1.97.0 was pinned and enforced**, where mln-rs needs 1.98. Fixed in `1fe9821f`, which
+   builds exact2 with 1.99.1.
+3. **Vendored crates pinned `ureq = "=3.4.0"`**, and `contract-lower` `icu_locale = "=2.3.0"`, where
+   mln-rs needs ureq 3.5 and icu_locale 2.4. Fixed in `3a9517f3`, which gives `ibex2` a copy of ureq
+   of its own and leaves both to the app. The web build's wasm-bindgen CLI is still 0.2.127 and
+   refuses the 0.2.130 mln-rs pins.
+4. **No modifier keys on pointer and wheel events, and no platform pinch.** Fixed in `21834f674`,
+   which gives them the web's modifier keys and sends a trackpad's magnify as a wheel with Control,
+   as browsers do. A trackpad's rotation still isn't sent.
 5. **`exact lock` resolves offline first and fails rather than fetching** when a new dependency needs
    a version the offline index lacks (`objc2` 0.6.5 here). A plain `cargo metadata` fetched it. It
    also keeps a locked version that a path dependency has since ruled out (`thiserror` 2.0.20, once

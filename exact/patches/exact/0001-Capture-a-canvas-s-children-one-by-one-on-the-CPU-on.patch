@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 6721c6bad1be5c22973ee540a97344ecc75b614c Mon Sep 17 00:00:00 2001
 From: Birk Skyum <birk.skyum@pm.me>
 Date: Thu, 12 Nov 2026 21:11:27 +0100
-Subject: [PATCH 4/5] Capture a canvas's children one by one on the CPU on iOS
+Subject: [PATCH] Capture a canvas's children one by one on the CPU on iOS
 
 ---
  host/apple/Sources/ExactKit/IOS/CaptureIOS.swift | 7 ++++---
@@ -30,10 +30,10 @@ index ac737811..f3c0dbd7 100644
              let ok = shadow.render(view, scale: scale, into: bitmap)
              capturing = false
 diff --git a/host/apple/Sources/ExactSurfaces/GpuIOS.swift b/host/apple/Sources/ExactSurfaces/GpuIOS.swift
-index a5003bdf..cbd7d45b 100644
+index 5cc11727..fb085b19 100644
 --- a/host/apple/Sources/ExactSurfaces/GpuIOS.swift
 +++ b/host/apple/Sources/ExactSurfaces/GpuIOS.swift
-@@ -405,7 +405,10 @@ final class CanvasesHost {
+@@ -406,7 +406,10 @@ final class CanvasesHost {
              let hidden = child.hiddenByHost
              if child.placementHidden { child.isHidden = false }
              defer { child.isHidden = hidden }

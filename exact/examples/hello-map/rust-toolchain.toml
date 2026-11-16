@@ -1,3 +1,4 @@
+# exact2 moves to each stable Rust within two weeks of its release (LLP 1153.003 D6.1).
 [toolchain]
 channel = "1.99.1"
 components = ["rustfmt", "clippy"]
