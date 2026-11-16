@@ -536,6 +536,26 @@ pub unsafe fn metal_layer_target(
     Ok((target, Driver::CoreWorker))
 }
 
+/// Gives mln-rs the app's Java VM and context, which it fetches HTTP through
+/// (`HttpURLConnection`), loads the app's assets from and finds the system
+/// fonts with. A host calls it once before its first map; a later call
+/// changes nothing. Without it, a map loads no style from the network.
+///
+/// # Safety
+///
+/// `jni_env` is the calling thread's `JNIEnv*`, and `context` a live
+/// reference to an Android `Context`, such as the application.
+#[cfg(target_os = "android")]
+pub unsafe fn android_init(
+    jni_env: std::ptr::NonNull<std::ffi::c_void>,
+    context: std::ptr::NonNull<std::ffi::c_void>,
+) -> Result<(), String> {
+    // SAFETY: the caller's contract.
+    unsafe { mln_system_fonts::android::init(jni_env.as_ptr()) };
+    // SAFETY: the caller's contract.
+    unsafe { mln_storage::android::init(jni_env.as_ptr(), context.as_ptr()) }.map_err(|error| error.to_string())
+}
+
 /// A target of the Android `ANativeWindow` at `window` for a map of
 /// `viewport`, which the map renders into on a thread of its own and holds
 /// a reference to while it does.

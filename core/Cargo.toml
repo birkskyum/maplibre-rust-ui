@@ -1,6 +1,6 @@
 [package]
 name = "maplibre-rust-ui"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license = "MIT"
 description = "MapLibre maps for Rust UI frameworks, declared once and drawn by mln-rs"
@@ -42,3 +42,6 @@ metal = ["mln_runtime/metal"]
 
 [target.'cfg(target_os = "android")'.dependencies]
 raw-window-handle = "0.6.2"
+# For their Android setup, which needs the app's Java VM and context.
+mln_storage = { package = "mln-rs-storage", path = "../../mln-rs/crates/mln_storage", version = "0.0.12" }
+mln_system_fonts = { package = "mln-rs-system-fonts", path = "../../mln-rs/crates/mln_system_fonts", version = "0.0.12" }

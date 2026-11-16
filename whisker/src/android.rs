@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::ptr::NonNull;
+use std::sync::Once;
 
 use jni::JNIEnv;
 use jni::objects::{JFloatArray, JObject, JString};
@@ -31,9 +32,36 @@ fn text(env: &mut JNIEnv, text: &JString) -> String {
     env.get_string(text).map(Into::into).unwrap_or_default()
 }
 
+/// Gives mln-rs the app's Java VM and context, from the first view's, once.
+fn init(env: &mut JNIEnv, view: &JObject) {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        let context = env
+            .call_method(view, "getContext", "()Landroid/content/Context;", &[])
+            .and_then(|context| context.l())
+            .and_then(|context| env.call_method(&context, "getApplicationContext", "()Landroid/content/Context;", &[]))
+            .and_then(|context| context.l());
+        let Ok(context) = context else {
+            let _ = env.exception_clear();
+            return;
+        };
+        if let (Some(raw_env), Some(raw_context)) =
+            (NonNull::new(env.get_raw().cast()), NonNull::new(context.as_raw().cast()))
+        {
+            // SAFETY: this thread's env, and the application's context, alive
+            // through the call.
+            let _ = unsafe { maplibre_rust_ui::component::android_init(raw_env, raw_context) };
+        }
+    });
+}
+
 /// A map, which wakes the view's frames through its `resume()`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_org_maplibre_whisker_MapLibreSurfaceView_nativeNew(env: JNIEnv, view: JObject) -> jlong {
+pub extern "system" fn Java_org_maplibre_whisker_MapLibreSurfaceView_nativeNew(
+    mut env: JNIEnv,
+    view: JObject,
+) -> jlong {
+    init(&mut env, &view);
     let (Ok(vm), Ok(view)) = (env.get_java_vm(), env.new_global_ref(view)) else { return 0 };
     let wake = Box::new(move || {
         if let Ok(mut env) = vm.attach_current_thread() {

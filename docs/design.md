@@ -169,6 +169,8 @@ Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://git
     Pro (iOS 27.2) and the iOS 26.5 simulator, and `EXACT_CAPTURE=cpu` cures it. The prototype
     captures each child on the CPU ([`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches)), which costs little for
     children the size of markers.
+11. **A GPU surface on Android gets neither the app's Java VM nor its context**, which mln-rs 0.0.12
+    needs to fetch over `HttpURLConnection`, so the map loads no style there.
 
 ## What mln-rs would need
 
@@ -186,8 +188,9 @@ Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://git
 Five needs are met.
 
 - A host renders into its own textures with `BorrowedTarget`, on every mln-rs backend.
-- mln-rs trusts Android's system certificates when the app gives it no Java VM
-  ([louwers/mln-rs#307](https://github.com/louwers/mln-rs/pull/307)).
+- mln-rs fetches through Android's own `HttpURLConnection` once a host gives it the app's Java VM
+  and context, which the core's `component::android_init` passes on. Whisker's host does at its
+  first view.
 - mln-rs links Apple's own SQLite on Apple's platforms, as Exact's own crates do
   ([louwers/mln-rs#344](https://github.com/louwers/mln-rs/pull/344)). The SQLite it built in probed
   filesystem types with `statfs`, which Apple counts as a disk-space API whose use an app's privacy
@@ -231,8 +234,8 @@ Five needs are met.
   right-click on macOS, and the callout, the compass and a long press on Android and on the
   iPhone (the compass turning there on the iOS 26.5 simulator, since the phone's Metal HUD sits
   over it). The globe, the relief and the located dot on macOS and Android. On the iPhone the map took 1.5 ms of GPU time a frame while panning. Android draws with
-  wgpu's Vulkan backend, and mln-rs fetches over its ureq transport there, where Apple uses
-  NSURLSession.
+  wgpu's Vulkan backend, and mln-rs fetched over its ureq transport there before 0.0.12, where Apple
+  uses NSURLSession.
 - A phone build needs a development profile for the app's bundle id that includes the phone. Exact
   uses one that is installed and doesn't create it, so the first time it is made with Xcode's
   automatic signing (`xcodebuild -allowProvisioningUpdates` on any app target with the bundle id).
