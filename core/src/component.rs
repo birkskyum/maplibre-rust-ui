@@ -406,6 +406,7 @@ impl Component {
         }
         let mut record = self.engine.as_ref().map(Engine::record).unwrap_or_else(|| Record {
             camera: self.inputs.camera,
+            bounds: None,
             loaded: false,
             click: None,
             contextmenu: None,

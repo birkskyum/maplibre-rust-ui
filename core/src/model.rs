@@ -39,10 +39,7 @@ impl Inputs {
 /// The app's sources and layers, drawn over the base style, as
 /// `{"sources": {"id": source, …}, "layers": [layer, …]}` in the style
 /// specification's terms. A layer draws above the layers before it and above
-/// the base style, unless it names a layer to draw under with `beforeId`, as
-/// GL JS's `addLayer` takes it, or a type of layer with `beforeType`, which
-/// draws it under the base style's first layer of that type, so `"symbol"`
-/// draws it under the labels whatever the style names them. A layer may use a
+/// the base style, unless it says where else ([`Placement`]). A layer may use a
 /// source of the base style. `images` names the app's images that layers use,
 /// such as an `icon-image`, by their paths under the app's `assets/` folder,
 /// written from the app's folder as Contract writes them:
@@ -176,13 +173,30 @@ impl Anchor {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layer {
     pub id: String,
-    /// The layer it draws under, if not above all before it.
-    pub before: Option<String>,
-    /// The type of the base style's layer it draws under, without `before`.
-    pub before_type: Option<String>,
-    /// The layer as the style specification writes it, without `beforeId`
-    /// and `beforeType`.
+    pub placement: Placement,
+    /// The layer as the style specification writes it, without its placement.
     pub json: Json,
+}
+
+/// Where a layer draws among the base style's layers, as MapLibre Compose's
+/// `Anchor` places it. Layers with the same placement draw in the content's
+/// order.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum Placement {
+    /// Above the base style, the default.
+    #[default]
+    Top,
+    /// Directly under the layer with this id, as GL JS's `addLayer` takes its
+    /// `beforeId`.
+    Before(String),
+    /// Under the base style's first layer of this type (`beforeType`), so
+    /// `"symbol"` draws under the labels whatever the style names them.
+    BeforeType(String),
+    /// Directly above the base style's layer with this id (`afterId`).
+    After(String),
+    /// Above the base style's last layer of this type (`afterType`), so
+    /// `"background"` draws under all the rest of the base style.
+    AfterType(String),
 }
 
 /// One of the app's images.
@@ -239,17 +253,26 @@ impl Content {
                     if content.layers.iter().any(|l| l.id == id) {
                         return Err(format!("maplibre: content has two layers with the id {id}"));
                     }
-                    let before = match layer.remove("beforeId") {
-                        None | Some(Json::Null) => None,
-                        Some(Json::String(before)) => Some(before),
-                        Some(_) => return Err(format!("maplibre: layer {id}'s beforeId must be a layer id")),
-                    };
-                    let before_type = match layer.remove("beforeType") {
-                        None | Some(Json::Null) => None,
-                        Some(Json::String(kind)) => Some(kind),
-                        Some(_) => return Err(format!("maplibre: layer {id}'s beforeType must be a layer type")),
-                    };
-                    content.layers.push(Layer { id, before, before_type, json: Json::Object(layer) });
+                    let mut placements = Vec::new();
+                    for (key, place) in [
+                        ("beforeId", Placement::Before as fn(String) -> Placement),
+                        ("beforeType", Placement::BeforeType),
+                        ("afterId", Placement::After),
+                        ("afterType", Placement::AfterType),
+                    ] {
+                        match layer.remove(key) {
+                            None | Some(Json::Null) => {}
+                            Some(Json::String(name)) => placements.push(place(name)),
+                            Some(_) => return Err(format!("maplibre: layer {id}'s {key} must be a string")),
+                        }
+                    }
+                    if placements.len() > 1 {
+                        return Err(format!(
+                            "maplibre: layer {id} takes one of beforeId, beforeType, afterId and afterType"
+                        ));
+                    }
+                    let placement = placements.pop().unwrap_or_default();
+                    content.layers.push(Layer { id, placement, json: Json::Object(layer) });
                 }
             }
             Some(_) => return Err("maplibre: content's layers must be an array".into()),
@@ -402,6 +425,9 @@ pub struct CameraChange {
     /// Points of the canvas's edges that the camera's center keeps clear of,
     /// such as under a panel over the map. It stays until a command changes it.
     pub padding: Option<Padding>,
+    /// `[longitude, latitude]` that stays where it is on the screen as the
+    /// camera zooms and turns, as GL JS's `easeTo` takes it.
+    pub around: Option<[f64; 2]>,
 }
 
 /// GL JS's `PaddingOptions`: one number for every edge, or each edge's own.
@@ -533,6 +559,9 @@ pub struct Record {
     /// The camera where it last came to rest.
     #[serde(flatten)]
     pub camera: Camera,
+    /// What the map shows from that camera, `[[west, south], [east, north]]`,
+    /// as GL JS's `getBounds` gives it; `null` until the map knows.
+    pub bounds: Option<[[f64; 2]; 2]>,
     /// Whether the style and every tile in view have loaded.
     pub loaded: bool,
     /// The last click, `null` before the first.
@@ -676,6 +705,14 @@ mod tests {
     }
 
     #[test]
+    fn an_ease_to_can_zoom_around_a_place() {
+        let command = Command::parse(r#"{"command":"easeTo","zoom":14,"around":[8.54,47.38]}"#);
+        let Ok(Command::EaseTo(animation)) = command else { panic!("{command:?}") };
+        assert_eq!(animation.camera.around, Some([8.54, 47.38]));
+        assert_eq!(animation.camera.zoom, Some(14.0));
+    }
+
+    #[test]
     fn a_fit_bounds_takes_two_corners() {
         assert_eq!(
             Command::parse(r#"{"command":"fitBounds","bounds":[[8.5,47.3],[8.6,47.4]],"padding":20}"#),
@@ -711,9 +748,23 @@ mod tests {
         let Ok(content) = content else { panic!("{content:?}") };
         assert_eq!(content.sources.len(), 1);
         assert_eq!(content.layers.iter().map(|l| l.id.as_str()).collect::<Vec<_>>(), ["casing", "line"]);
-        assert_eq!(content.layers[0].before.as_deref(), Some("labels"));
+        assert_eq!(content.layers[0].placement, Placement::Before("labels".into()));
+        assert_eq!(content.layers[1].placement, Placement::Top);
         assert!(content.layers[0].json.get("beforeId").is_none());
         assert_eq!(content.hit_padding, 6.0);
+    }
+
+    #[test]
+    fn a_layer_draws_above_a_layer_or_type_and_takes_one_placement() {
+        let placement = |layer: &str| {
+            inputs(&format!(r#"{{"layers":[{{"id":"a","type":"background",{layer}}}]}}"#))
+                .map(|inputs| inputs.content.layers[0].placement.clone())
+        };
+        assert_eq!(placement(r#""afterId":"water""#), Ok(Placement::After("water".into())));
+        assert_eq!(placement(r#""afterType":"background""#), Ok(Placement::AfterType("background".into())));
+        assert_eq!(placement(r#""beforeType":"symbol","afterId":null"#), Ok(Placement::BeforeType("symbol".into())));
+        assert!(placement(r#""beforeId":"labels","afterId":"water""#).is_err());
+        assert!(placement(r#""afterType":3"#).is_err());
     }
 
     #[test]
@@ -776,6 +827,7 @@ mod tests {
     fn the_record_has_null_for_no_click_and_no_failure() {
         let record = Record {
             camera: Camera { center: [1.0, 2.0], zoom: 3.0, bearing: 0.0, pitch: 0.0 },
+            bounds: None,
             loaded: true,
             click: None,
             contextmenu: None,
@@ -784,7 +836,7 @@ mod tests {
         };
         assert_eq!(
             record.to_json(),
-            r#"{"center":[1.0,2.0],"zoom":3.0,"bearing":0.0,"pitch":0.0,"loaded":true,"click":null,"contextmenu":null,"failure":null,"attribution":""}"#
+            r#"{"center":[1.0,2.0],"zoom":3.0,"bearing":0.0,"pitch":0.0,"bounds":null,"loaded":true,"click":null,"contextmenu":null,"failure":null,"attribution":""}"#
         );
     }
 

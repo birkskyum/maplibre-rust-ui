@@ -131,6 +131,12 @@ pub struct Engine {
     /// The last failure that refuses the canvas, until the surface reports it.
     refusal: Option<String>,
     attribution: String,
+    /// What the map shows from the camera at rest, and the camera it is for.
+    bounds: Option<[[f64; 2]; 2]>,
+    bounds_of: Option<Camera>,
+    /// The bounds asked for a camera that came to rest, whose `moveend`
+    /// waits for them.
+    bounding: Option<(Camera, Completion<LatLngBounds>)>,
     size: Size,
     scale: f32,
     /// The instant of a host millisecond, which the map's clock counts from.
@@ -262,6 +268,9 @@ impl Engine {
             error: None,
             refusal: None,
             attribution: String::new(),
+            bounds: None,
+            bounds_of: None,
+            bounding: None,
             size,
             scale,
             epoch: (Instant::now(), now_ms),
@@ -318,6 +327,7 @@ impl Engine {
             bearing: (new.bearing != old.bearing).then_some(new.bearing),
             pitch: (new.pitch != old.pitch).then_some(new.pitch),
             padding: None,
+            around: None,
         };
         if change != CameraChange::default() {
             self.animate(CameraUpdateMode::Jump, camera_options(&change), None);
@@ -442,10 +452,11 @@ impl Engine {
     pub fn command(&mut self, command: Command, at_ms: f64) {
         self.set_frame_time(at_ms);
         match command {
-            Command::JumpTo(change) => self.animate(CameraUpdateMode::Jump, camera_options(&change), None),
+            Command::JumpTo(change) => self.animate(CameraUpdateMode::Jump, self.around(&change), None),
             Command::EaseTo(animation) => {
-                self.animate(CameraUpdateMode::Ease, camera_options(&animation.camera), animation.duration);
+                self.animate(CameraUpdateMode::Ease, self.around(&animation.camera), animation.duration);
             }
+            // As GL JS's, a flight doesn't zoom around a place.
             Command::FlyTo(animation) => {
                 self.animate(CameraUpdateMode::Fly, camera_options(&animation.camera), animation.duration);
             }
@@ -461,6 +472,19 @@ impl Engine {
                 self.applied.style = inputs.style;
             }
         }
+    }
+
+    /// The camera `change` asks for, zooming and turning about the point
+    /// where its `around` place is now.
+    fn around(&self, change: &CameraChange) -> CameraOptions {
+        let mut camera = camera_options(change);
+        if let Some([longitude, latitude]) = change.around
+            && let Ok(place) = LatLng::new(latitude, longitude)
+            && let Ok(projection) = MapProjection::from_view(&self.snapshot.view)
+        {
+            camera.anchor = Some(projection.pixel_for_lat_lng(&place));
+        }
+        camera
     }
 
     fn animate(&mut self, mode: CameraUpdateMode, camera: CameraOptions, duration_ms: Option<f64>) {
@@ -551,13 +575,13 @@ impl Engine {
         self.refresh();
         let resting =
             !self.animating && !self.snapshot.transition_in_progress && self.pointers == 0 && self.fit.is_none();
-        if resting {
+        if resting && self.bounding.is_none() {
             let camera = self.camera();
-            if camera != self.rest {
-                self.rest = camera;
-                events.push(Event::Moveend);
+            if camera != self.rest || self.bounds_of != Some(camera) {
+                self.ask_bounds(camera, events);
             }
         }
+        self.poll_bounds(events);
         // The load waits for the sources' attribution, which its record has.
         if self.snapshot.fully_loaded && !self.loaded {
             self.loaded = true;
@@ -574,6 +598,7 @@ impl Engine {
             || !self.sent.is_empty()
             || !self.asked.is_empty()
             || self.sources.is_some()
+            || self.bounding.is_some()
             || !matches!(self.style, StyleState::Loaded(_));
         waiting || !resting
     }
@@ -669,6 +694,35 @@ impl Engine {
                 MapEvent::RenderError(error) => self.fail(format!("maplibre: {}", error.message), events),
                 _ => {}
             }
+        }
+    }
+
+    /// Asks for what the map shows from `camera`, where it came to rest.
+    fn ask_bounds(&mut self, camera: Camera, events: &mut Vec<Event>) {
+        let asked = view_of(&self.snapshot.view)
+            .ok_or(())
+            .and_then(|(state, _)| self.map.lat_lng_bounds_for_camera(state.get_camera_options(None)).map_err(|_| ()));
+        match asked {
+            Ok(bounds) => self.bounding = Some((camera, bounds)),
+            Err(()) => self.rest_at(camera, None, events),
+        }
+    }
+
+    fn poll_bounds(&mut self, events: &mut Vec<Event>) {
+        if let Some((camera, bounds)) = self.bounding.take_if(|(_, bounds)| bounds.is_complete()) {
+            let bounds = bounds.wait().ok().map(|b| [[b.west(), b.south()], [b.east(), b.north()]]);
+            self.rest_at(camera, bounds, events);
+        }
+    }
+
+    /// Records `camera` at rest, with what the map shows from it, and posts
+    /// `moveend` if it moved.
+    fn rest_at(&mut self, camera: Camera, bounds: Option<[[f64; 2]; 2]>, events: &mut Vec<Event>) {
+        self.bounds = bounds;
+        self.bounds_of = Some(camera);
+        if camera != self.rest {
+            self.rest = camera;
+            events.push(Event::Moveend);
         }
     }
 
@@ -853,6 +907,7 @@ impl Engine {
         // and not every frame of a gesture.
         Record {
             camera: self.rest,
+            bounds: if self.bounds_of == Some(self.rest) { self.bounds } else { None },
             loaded: self.loaded && self.snapshot.fully_loaded,
             click: self.click.clone(),
             contextmenu: self.contextmenu.clone(),
@@ -919,6 +974,7 @@ fn everything(camera: &Camera) -> CameraChange {
         bearing: Some(camera.bearing),
         pitch: Some(camera.pitch),
         padding: None,
+        around: None,
     }
 }
 
@@ -940,5 +996,76 @@ fn animation_options(duration_ms: Option<f64>) -> AnimationOptions {
     AnimationOptions {
         duration: duration_ms.map(|ms| Duration::from_secs_f64(ms.max(0.0) / 1000.0)),
         ..AnimationOptions::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mln_runtime::Driver;
+
+    use super::*;
+
+    const ZURICH: [f64; 2] = [8.54, 47.37];
+
+    /// A map of a plain style, 400 by 300 points, at zoom 10 over Zürich,
+    /// rendering offscreen.
+    fn engine() -> Engine {
+        let inputs = Inputs {
+            style: r#"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background"}]}"#.to_owned(),
+            camera: Camera { center: ZURICH, zoom: 10.0, bearing: 0.0, pitch: 0.0 },
+            content: Content::default(),
+            options: Options::default(),
+            events: Vec::new(),
+        };
+        let size = Size::new(400, 300);
+        let target = RenderTarget::Offscreen { size, device: None };
+        Engine::new(Viewport { size, scale: 1.0 }, 0.0, inputs, target, Driver::CallerThread)
+            .unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    /// Runs frames until `done` holds of the record, and returns it.
+    fn until(engine: &mut Engine, now_ms: &mut f64, done: impl Fn(&Record) -> bool) -> Record {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            *now_ms += 16.0;
+            engine.frame(*now_ms, &HashMap::new(), &mut Vec::new());
+            let record = engine.record();
+            if done(&record) {
+                return record;
+            }
+            assert!(Instant::now() < deadline, "the map never got there: {record:?}");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    #[test]
+    fn the_record_has_what_the_map_shows_from_the_camera_at_rest() {
+        let mut engine = engine();
+        let mut now = 0.0;
+        let record = until(&mut engine, &mut now, |record| record.bounds.is_some());
+        let [[west, south], [east, north]] = record.bounds.unwrap_or_default();
+        // 400 points of a world 512 × 2¹⁰ points wide.
+        let width = 400.0 / (512.0 * 1024.0) * 360.0;
+        assert!(((east - west) - width).abs() < 1e-6, "{west} to {east}");
+        assert!((west + east) / 2.0 - ZURICH[0] < 1e-6 && south < ZURICH[1] && ZURICH[1] < north);
+
+        engine.command(Command::parse(r#"{"command":"jumpTo","zoom":11}"#).unwrap_or_else(|e| panic!("{e}")), now);
+        let record = until(&mut engine, &mut now, |record| record.camera.zoom == 11.0 && record.bounds.is_some());
+        let [[west, _], [east, _]] = record.bounds.unwrap_or_default();
+        assert!(((east - west) - width / 2.0).abs() < 1e-6, "{west} to {east}");
+    }
+
+    #[test]
+    fn a_camera_zooms_around_a_place_that_stays_where_it_is_on_the_screen() {
+        let mut engine = engine();
+        let mut now = 0.0;
+        until(&mut engine, &mut now, |record| record.bounds.is_some());
+        let place = [ZURICH[0] + 0.1, ZURICH[1]];
+        let ease = format!(r#"{{"command":"easeTo","zoom":12,"around":[{},{}],"duration":0}}"#, place[0], place[1]);
+        engine.command(Command::parse(&ease).unwrap_or_else(|e| panic!("{e}")), now);
+        let record = until(&mut engine, &mut now, |record| record.camera.zoom == 12.0);
+        // Four times the scale leaves a quarter of the way from the place to the center.
+        let expected = place[0] + (ZURICH[0] - place[0]) / 4.0;
+        assert!((record.camera.center[0] - expected).abs() < 1e-6, "{:?}, not {expected}", record.camera.center);
     }
 }

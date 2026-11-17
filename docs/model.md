@@ -56,7 +56,7 @@ applies over the base style and follows as the app's state changes.
 | Field | What it is |
 |---|---|
 | `sources` | Sources by id, as the style writes them |
-| `layers` | Layers in drawing order, the last on top, as the style writes them, with `beforeId` or `beforeType` |
+| `layers` | Layers in drawing order, the last on top, as the style writes them, each with where it draws among the base style's layers |
 | `images` | Images that layers use, such as an `icon-image`, by name |
 | `hitPadding` | How many points around a click still hit a feature, which makes small circles and thin lines easier to tap |
 | `markers` | The app's own elements held at places on the map |
@@ -65,10 +65,19 @@ applies over the base style and follows as the app's state changes.
 
 ### Layers
 
-A layer draws above the base style and above the content's layers before it. With `beforeId` it draws
-under the layer of that id, as GL JS's `addLayer` takes it. With `beforeType` it draws under the base
-style's first layer of that type, so `"beforeType": "symbol"` draws it under the labels whatever the
-style calls them. A layer may use a source of the base style.
+A layer draws above the base style, unless one of these places it among the base style's layers, as
+MapLibre Compose's `Anchor` does. A layer takes one of them.
+
+| Placement | Where the layer draws |
+|---|---|
+| `beforeId` | Directly under the layer of that id, as GL JS's `addLayer` takes it |
+| `beforeType` | Under the base style's first layer of that type, so `"symbol"` draws under the labels whatever the style calls them |
+| `afterId` | Directly above the base style's layer of that id |
+| `afterType` | Above the base style's last layer of that type, so `"background"` draws under all the rest of the base style |
+
+Layers with the same placement draw in the content's order. A placement by a type the base style has
+no layer of draws the layer above the base style, and an `afterId` that names no layer of the base
+style is reported as a failure. A layer may use a source of the base style.
 
 When the content changes, the map does the least it can.
 
@@ -180,6 +189,8 @@ A command is a JSON object whose `command` names it, with GL JS's camera options
 | `setStyle` | Switches the base style, `{"style": url}`, keeping the content |
 
 `jumpTo`, `easeTo` and `flyTo` take `center`, `zoom`, `bearing` and `pitch`, and set only those given.
+`jumpTo` and `easeTo` also take `around`, a `[longitude, latitude]` that stays where it is on the
+screen as the camera zooms and turns, as GL JS's `easeTo` takes it. A flight ignores it, as in GL JS.
 `easeTo` and `flyTo` take a `duration` in milliseconds, which is the engine's own without one. Each of
 them can also take `padding`, the points of the map's edges that the camera's center keeps clear of,
 such as under a panel over the map. It is one number for every edge, or each edge's own,
@@ -206,6 +217,7 @@ the record changes when something happens and not on every frame of a gesture.
 ```json
 {
   "center": [8.5402, 47.3779], "zoom": 14, "bearing": 0, "pitch": 0,
+  "bounds": [[8.5316, 47.3742], [8.5488, 47.3816]],
   "loaded": true,
   "click": {
     "lngLat": {"lng": 8.5402, "lat": 47.3779},
@@ -224,6 +236,7 @@ the record changes when something happens and not on every frame of a gesture.
 | Field | What it is |
 |---|---|
 | `center`, `zoom`, `bearing`, `pitch` | The camera where it last came to rest |
+| `bounds` | What the map shows from that camera, `[[west, south], [east, north]]`, as GL JS's `getBounds` gives it, the smallest box around the view when the map is turned or pitched. `null` until the map knows |
 | `loaded` | Whether the style and every tile in view have loaded |
 | `click` | The last click, `null` before the first |
 | `contextmenu` | The last secondary click or long press, `null` before the first |

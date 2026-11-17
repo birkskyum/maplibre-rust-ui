@@ -27,7 +27,8 @@ the app's state, typed in TypeScript.
 
 - A layer draws above the base style and above the content's layers before it, under the layer its
   `beforeId` names, or under the base style's first layer of the type its `beforeType` names, so
-  `"beforeType": "symbol"` draws it under the labels whatever the style calls them.
+  `"beforeType": "symbol"` draws it under the labels whatever the style calls them. `afterId` and
+  `afterType` draw it directly above a base layer, or above the base style's last layer of a type.
 - When the content changes, the map does the least it can. A GeoJSON source takes new data in place,
   and a layer takes changed paint and layout properties, filter and zoom range in place. A changed
   source type or tiles, a changed layer type or source, or a new order removes and adds those layers
@@ -130,8 +131,8 @@ what is still to learn from it.
 | MapLibre Compose's guide | What MapLibre Compose has | maplibre-rust-ui |
 |---|---|---|
 | Style the map | A base style that follows the app's state, such as its theme | A base style the app changes with `setStyle` or a new `style`, keeping the content, which can set the style's `projection` (a globe), `sky` and `light` |
-| Control the camera | `MapState`, with eased and flown moves, fitting bounds, camera padding, and moves that keep a point on the screen or the map fixed | `jumpTo`, `easeTo`, `flyTo` and `fitBounds` with camera `padding`, the camera at rest in the record, and zoom, pitch and bounds limits in `options`. No moves about a fixed point |
-| Add data to the map | GeoJSON, vector, raster and image sources, a composable for each layer type, `Anchor` to place layers among the base style's, and typed expressions in Kotlin | The same sources and layers as the style specification's JSON, placed with `beforeId` or `beforeType` as `Anchor.Below` does, GeoJSON clusters with each one's expansion zoom, and values for `global-state` expressions. Expressions are the specification's untyped JSON, and there is no feature state |
+| Control the camera | `MapState`, with eased and flown moves, fitting bounds, camera padding, and moves that keep a point on the screen or the map fixed | `jumpTo`, `easeTo`, `flyTo` and `fitBounds` with camera `padding`, moves about a place with `around`, the camera at rest and what it shows in the record, and zoom, pitch and bounds limits in `options`. No moves about a point of the screen |
+| Add data to the map | GeoJSON, vector, raster and image sources, a composable for each layer type, `Anchor` to place layers among the base style's, and typed expressions in Kotlin | The same sources and layers as the style specification's JSON, placed below or above a base layer or the first or last of a type, as `Anchor.Below` and `Anchor.Above` do, GeoJSON clusters with each one's expansion zoom, and values for `global-state` expressions. Expressions are the specification's untyped JSON, and there is no feature state |
 | Add images and icons | Icons from a painter, a bitmap or the style's sprite, image sources, and a resolver for missing images | Images from the app's assets, named in the content |
 | Handle gestures and clicks | Switches for each gesture, clicks and long clicks on the map and on each layer, passed from the front until one takes it, and hit padding | Switches for the gestures in `options`, and clicks and context menus as events with the content's features under them and hit padding. A click goes to the app as one event, not to each layer |
 | Overlay Compose UI | Material 3's scale bar, compass, zoom buttons and attribution, and Compose UI placed at a place on the map or pointing to one off the screen | Markers as GL JS has them, holding the host's own UI at places on the map in every host but Native Shell, and turning and tilting with it in Slint, Whisker and Exact, a compass as a marker, and the attribution as text in the record. No scale bar or zoom buttons |

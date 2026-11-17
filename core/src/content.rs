@@ -15,7 +15,7 @@ use mln_runtime::{Applied, Completion, Error, ErrorKind, Map};
 use mln_util::image::PremultipliedImage;
 use serde_json::Value as Json;
 
-use crate::model::{Content, Layer};
+use crate::model::{Content, Layer, Placement};
 
 /// What content needs of the loaded style itself: its root properties, which
 /// come back when the content drops its own, and its layers by type, which a
@@ -42,13 +42,38 @@ impl Base {
         Base { roots: style, layers }
     }
 
-    /// The first of the style's layers of type `kind` that none of the
-    /// content is.
-    fn first_of_type(&self, content: &Content, kind: &str) -> Option<String> {
-        self.layers
-            .iter()
-            .find(|(id, type_)| type_ == kind && !content.layers.iter().any(|layer| &layer.id == id))
-            .map(|(id, _)| id.clone())
+    /// The style's own layers, those that none of the content is, as their
+    /// ids and types from the bottom up.
+    fn own<'a>(&'a self, content: &'a Content) -> impl Iterator<Item = &'a (String, String)> + 'a {
+        self.layers.iter().filter(|(id, _)| !content.layers.iter().any(|layer| &layer.id == id))
+    }
+
+    /// The style's own layer directly above `id`'s, under which a layer that
+    /// draws directly above `id` goes, or `None` when `id` is the topmost.
+    fn above(&self, content: &Content, id: &str) -> Option<String> {
+        self.own(content).skip_while(|(own, _)| own != id).nth(1).map(|(id, _)| id.clone())
+    }
+
+    /// Where a layer with `placement` goes on the style: under the layer this
+    /// names, or above everything for `None`. A placement by type that the
+    /// style has no layer of puts the layer above everything.
+    fn slot(&self, content: &Content, placement: &Placement) -> Result<Option<String>, Error> {
+        Ok(match placement {
+            Placement::Top => None,
+            Placement::Before(id) => Some(id.clone()),
+            Placement::BeforeType(kind) => self.own(content).find(|(_, type_)| type_ == kind).map(|(id, _)| id.clone()),
+            Placement::After(id) => {
+                if !self.own(content).any(|(own, _)| own == id) {
+                    let message = format!("afterId names {id}, which is no layer of the base style");
+                    return Err(Error::new(ErrorKind::InvalidArgument, message));
+                }
+                self.above(content, id)
+            }
+            Placement::AfterType(kind) => match self.own(content).filter(|(_, type_)| type_ == kind).last() {
+                Some((id, _)) => self.above(content, id),
+                None => None,
+            },
+        })
     }
 }
 
@@ -207,20 +232,31 @@ pub(super) fn apply(
         }
     }
 
-    // New layers, from the top down, each under the next one on the style.
+    // New layers, from the top down. Each goes where its placement puts it,
+    // under the next of the content's layers with the same placement, so
+    // that those keep the content's order.
+    let slots: Vec<_> = desired.layers.iter().map(|layer| base.slot(desired, &layer.placement)).collect();
     let mut added = Vec::new();
     for (index, layer) in desired.layers.iter().enumerate().rev() {
         if held.layers.iter().any(|held| held.id == layer.id) {
             continue;
         }
+        let what = format!("layer {}", layer.id);
+        let slot = match &slots[index] {
+            Ok(slot) => slot,
+            Err(error) => {
+                commands.send(what, Undo::Nothing, Err(error.clone()));
+                continue;
+            }
+        };
+        let on_style = |id: &String| held.layers.iter().any(|held| &held.id == id) || added.contains(id);
         let next = desired.layers[index + 1..]
             .iter()
-            .find(|above| held.layers.iter().any(|held| held.id == above.id) || added.contains(&above.id))
-            .map(|above| above.id.clone());
-        let under_type = layer.before_type.as_deref().and_then(|kind| base.first_of_type(desired, kind));
-        let before = layer.before.clone().or(under_type).or(next);
-        let command = map.add_style_layer_json(layer.json.to_string(), before);
-        commands.send(format!("layer {}", layer.id), Undo::Layer(layer.id.clone()), command);
+            .zip(&slots[index + 1..])
+            .find(|(above, above_slot)| on_style(&above.id) && above_slot.as_ref() == Ok(slot))
+            .map(|(above, _)| above.id.clone());
+        let command = map.add_style_layer_json(layer.json.to_string(), next.or_else(|| slot.clone()));
+        commands.send(what, Undo::Layer(layer.id.clone()), command);
         added.push(layer.id.clone());
     }
     held.layers = desired
@@ -325,7 +361,7 @@ fn in_place(old: &Layer, new: &Layer) -> bool {
         }
         json
     };
-    old.before == new.before && old.before_type == new.before_type && rest(old) == rest(new)
+    old.placement == new.placement && rest(old) == rest(new)
 }
 
 /// What changed in `new`'s paint and layout properties, filter and zoom
@@ -436,6 +472,63 @@ mod tests {
         let (_, errors) = change(&map, &base, &Content::default(), &content(under_labels), &HashMap::new());
         assert_eq!(errors, Vec::new());
         assert_eq!(layers(&map), ["water", "trail", "road-names", "city-names"]);
+    }
+
+    #[test]
+    fn layers_that_draw_under_one_layer_keep_their_order() {
+        let (_runtime, map, base) = map(BASE);
+        let under = r#"{"sources":{"points":POINTS},"layers":[
+            {"id":"a","type":"circle","source":"points","beforeId":"labels"},
+            {"id":"b","type":"circle","source":"points","beforeId":"labels"}]}"#
+            .replace("POINTS", POINTS);
+        let (_, errors) = change(&map, &base, &Content::default(), &content(&under), &HashMap::new());
+        assert_eq!(errors, Vec::new());
+        assert_eq!(layers(&map), ["water", "a", "b", "labels"]);
+    }
+
+    #[test]
+    fn a_layer_listed_before_one_that_draws_lower_still_draws_at_the_top() {
+        let (_runtime, map, base) = map(BASE);
+        let layers_ = r#"{"sources":{"points":POINTS},"layers":[
+            {"id":"top","type":"circle","source":"points"},
+            {"id":"low","type":"circle","source":"points","beforeId":"labels"}]}"#
+            .replace("POINTS", POINTS);
+        let (_, errors) = change(&map, &base, &Content::default(), &content(&layers_), &HashMap::new());
+        assert_eq!(errors, Vec::new());
+        assert_eq!(layers(&map), ["water", "low", "labels", "top"]);
+    }
+
+    #[test]
+    fn a_layer_can_draw_above_a_base_layer_or_the_last_of_a_type() {
+        let (_runtime, map, base) = map(
+            r#"{"version":8,"sources":{"points":{"type":"geojson","data":{"type":"FeatureCollection","features":[]}}},
+                "layers":[{"id":"water","type":"background"},
+                          {"id":"roads","type":"line","source":"points"},
+                          {"id":"rails","type":"line","source":"points"},
+                          {"id":"names","type":"symbol","source":"points"}]}"#,
+        );
+        let above = r#"{"layers":[
+            {"id":"land","type":"fill","source":"points","afterType":"background"},
+            {"id":"casing","type":"line","source":"points","afterId":"roads"},
+            {"id":"route","type":"line","source":"points","afterType":"line"},
+            {"id":"route-arrows","type":"symbol","source":"points","afterType":"line"},
+            {"id":"pins","type":"symbol","source":"points","afterId":"names"}]}"#;
+        let (_, errors) = change(&map, &base, &Content::default(), &content(above), &HashMap::new());
+        assert_eq!(errors, Vec::new());
+        assert_eq!(
+            layers(&map),
+            ["water", "land", "roads", "casing", "rails", "route", "route-arrows", "names", "pins"]
+        );
+    }
+
+    #[test]
+    fn a_layer_above_no_base_layer_is_left_out_and_reported() {
+        let (_runtime, map, base) = map(BASE);
+        let bad = r#"{"layers":[{"id":"x","type":"background","afterId":"nowhere"}]}"#;
+        let (held, errors) = change(&map, &base, &Content::default(), &content(bad), &HashMap::new());
+        assert_eq!(errors, [("layer x".to_owned(), ErrorKind::InvalidArgument)]);
+        assert!(held.layers.is_empty());
+        assert_eq!(layers(&map), ["water", "labels"]);
     }
 
     #[test]
