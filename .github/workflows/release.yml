@@ -84,6 +84,6 @@ jobs:
             echo "maplibre-exact $version is on npm already"
             exit 0
           fi
-          npm stage publish . --provenance
+          npm stage publish . --provenance --access public
           git tag "maplibre-exact-v$version"
           git push origin "maplibre-exact-v$version"
