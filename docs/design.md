@@ -114,23 +114,32 @@ Input goes to mln_gestures' `GestureRecognizer`, which has GL JS's gesture set o
 click, two-finger pinch and rotate, the arrow keys and `+`/`-`, and moves the map with the camera
 deltas maplibre-native-ffi's C API takes.
 
-## Against MapLibre Compose
+## Following MapLibre Compose
 
-| MapLibre Compose's guide | maplibre-rust-ui |
-|---|---|
-| Composition, a base style plus declared sources and layers, diffed | Done, as `content` |
-| Layers, with GeoJSON and tiled sources, expressions and `beforeId` | Done, and `beforeType` draws under the base style's first layer of a type, as `Anchor.Below` does |
-| Interaction, with clicks on the map and its layers and hit padding | Done, with long presses and secondary clicks as `contextmenu`, and `options` turns off rotating, pitching, scroll zoom or every gesture, keeping clicks |
-| Camera state and `animateTo` | `jumpTo`, `easeTo`, `flyTo`, `fitBounds` and the record, with camera `padding` and zoom, pitch and bounds limits in `options` |
-| Styling, switching styles at run time and keeping content | Done, with the `setStyle` command or a new `style` |
-| Clustering | Done, with the GeoJSON source's cluster options and each clicked cluster's expansion zoom |
-| Feature queries and feature state | Clicks query the content's layers; global state in the content's `state` drives expressions, as GL JS's `setGlobalStateProperty` does; no feature state |
-| Images and icons | Done, as content `images` from the app's `assets/`, which Exact delivers to the surface |
-| Markers and popups, as GL JS's `Marker` and `Popup` | Done, as content `markers` holding the canvas's Contract children, tappable and accessible |
-| Controls, the compass, scale bar and attribution | A compass is a Contract child turned as a marker, and the record's `attribution` is text the app shows over the map; no scale bar |
-| Terrain, hillshade and the globe | Hillshade and color relief layers, and the globe as the content's `projection`; mln-rs draws no 3D terrain, so the content's `terrain` is reported as a failure, without refusing the canvas |
-| Location and the location puck | The app's own, from Exact's `@exact/geolocation`, with the dot a marker; the example's locate button flies there |
-| Offline, requests, snapshotter | Not yet |
+[MapLibre Compose](https://maplibre.org/maplibre-compose/) is the project this one learns the most
+from. It brings MapLibre to Compose Multiplatform, on MapLibre Native on Android, iOS and desktop and
+on GL JS on the web, and its declarative map, where the app composes sources and layers over a base
+style and the map follows the app's state, is the model [the content](#content-the-way-maplibre-compose-does-it)
+copies. It is also much further along. It has typed expressions in Kotlin, Material 3 controls,
+offline downloads, a snapshotter, its own handling of map requests, a location layer, and the same
+map presented in CarPlay, Android Auto, UIKit, SwiftUI or React.
+
+The table follows its guides and says where maplibre-rust-ui is on each, so it doubles as a list of
+what is still to learn from it.
+
+| MapLibre Compose's guide | What MapLibre Compose has | maplibre-rust-ui |
+|---|---|---|
+| Style the map | A base style that follows the app's state, such as its theme | A base style the app changes with `setStyle` or a new `style`, keeping the content, which can set the style's `projection` (a globe), `sky` and `light` |
+| Control the camera | `MapState`, with eased and flown moves, fitting bounds, camera padding, and moves that keep a point on the screen or the map fixed | `jumpTo`, `easeTo`, `flyTo` and `fitBounds` with camera `padding`, the camera at rest in the record, and zoom, pitch and bounds limits in `options`. No moves about a fixed point |
+| Add data to the map | GeoJSON, vector, raster and image sources, a composable for each layer type, `Anchor` to place layers among the base style's, and typed expressions in Kotlin | The same sources and layers as the style specification's JSON, placed with `beforeId` or `beforeType` as `Anchor.Below` does, GeoJSON clusters with each one's expansion zoom, and values for `global-state` expressions. Expressions are the specification's untyped JSON, and there is no feature state |
+| Add images and icons | Icons from a painter, a bitmap or the style's sprite, image sources, and a resolver for missing images | Images from the app's assets, named in the content |
+| Handle gestures and clicks | Switches for each gesture, clicks and long clicks on the map and on each layer, passed from the front until one takes it, and hit padding | Switches for the gestures in `options`, and clicks and context menus as events with the content's features under them and hit padding. A click goes to the app as one event, not to each layer |
+| Overlay Compose UI | Material 3's scale bar, compass, zoom buttons and attribution, and Compose UI placed at a place on the map or pointing to one off the screen | Markers as GL JS has them, holding the host's own UI at places on the map in every host but Native Shell, and turning and tilting with it in Slint, Whisker and Exact, a compass as a marker, and the attribution as text in the record. No scale bar or zoom buttons |
+| Show the user's location | A location and heading provider, a location layer, and an effect that follows the user | The host's own location, such as Exact's `@exact/geolocation` in Hello Map, with the dot a marker. No location layer of its own |
+| Capture a map image | A snapshotter | Not yet |
+| Download maps for offline use | Offline downloads on every platform but the web | Not yet |
+| Rewrite or serve map requests | Requests the app rewrites or answers itself | Not yet |
+| Present outside Compose UI | The same map state shown in CarPlay, Android Auto, UIKit, SwiftUI or React | What the hosts do, one model shown in Slint, egui, Bevy, GPUI, Native Shell, Whisker and Exact |
 
 ## What Exact would need to change
 
