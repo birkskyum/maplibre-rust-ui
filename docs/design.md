@@ -144,8 +144,8 @@ Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://git
    builds exact2 with 1.99.1.
 3. **Vendored crates pinned `ureq = "=3.4.0"`**, and `contract-lower` `icu_locale = "=2.3.0"`, where
    mln-rs needs ureq 3.5 and icu_locale 2.4. Fixed in `3a9517f3`, which gives `ibex2` a copy of ureq
-   of its own and leaves both to the app. The web build's wasm-bindgen CLI is still 0.2.127 and
-   refuses the 0.2.130 mln-rs pins.
+   of its own and leaves both to the app. The web build's wasm-bindgen CLI was 0.2.127, which
+   refuses the 0.2.130 mln-rs pins, until `946156526` moved it to 0.2.130, past our base.
 4. **No modifier keys on pointer and wheel events, and no platform pinch.** Fixed in `21834f674`,
    which gives them the web's modifier keys and sends a trackpad's magnify as a wheel with Control,
    as browsers do. A trackpad's rotation still isn't sent.
@@ -244,8 +244,8 @@ Five needs are met.
 
 ## Not done yet
 
-- The web, Linux and Windows builds. The web is blocked on the wasm-bindgen pin and on mln-rs's
-  worker model.
+- The web, Linux and Windows builds. The web is blocked on mln-rs's worker model, and needs our
+  Exact base moved past `946156526` for wasm-bindgen 0.2.130.
 - The rest of the table above.
 - Accessibility of the map itself beyond the canvas's `aria-label`.
 - Several maps on one screen each have a runtime of their own, and in Exact the record's name,
