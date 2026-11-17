@@ -9,8 +9,9 @@ framework's host, which brings the core and mln-rs with it:
 cargo add maplibre-slint    # or maplibre-egui, maplibre-bevy, maplibre-nsh, maplibre-whisker
 ```
 
-They build with Rust 1.98 or later, as mln-rs does. The GPUI and Exact hosts aren't published, since
-they build on a changed GPUI and a patched Exact, so an app takes them from a checkout of this
+They build with Rust 1.98 or later, as mln-rs does. The Exact host is the npm package
+`maplibre-exact`, which an Exact app adds with `bun exact.mjs add maplibre-exact@0.1.0`. The GPUI host
+isn't published, since it builds on a changed GPUI, so an app takes it from a checkout of this
 repository.
 
 ## The checkouts

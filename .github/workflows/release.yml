@@ -4,7 +4,12 @@
 # skipped, so a run after one that stopped halfway publishes the rest. Each
 # host is its own workspace, so the hosts' versions of the core are bumped by
 # hand with the core's. GPUI's host isn't published, since it builds on a
-# changed GPUI, and Exact's is an Exact package rather than a crate.
+# changed GPUI.
+#
+# Then it publishes Exact's host, the package in exact/package, on npm as
+# maplibre-exact, unless its version is there already, and tags it
+# maplibre-exact-v<version>. npm trusts this workflow to publish it (trusted
+# publishing), so no token is involved, and npm adds the build's provenance.
 name: Release
 
 on:
@@ -52,3 +57,29 @@ jobs:
             git tag "$name-v$version"
             git push origin "$name-v$version"
           done
+
+  npm:
+    name: Publish on npm
+    # The package's crate takes the core from crates.io.
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          # Trusted publishing needs npm 11.5.1 or later.
+          node-version: 26
+      - name: Publish
+        working-directory: exact/package
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [ -n "$(npm view "maplibre-exact@$version" version 2> /dev/null)" ]; then
+            echo "maplibre-exact $version is on npm already"
+            exit 0
+          fi
+          npm publish
+          git tag "maplibre-exact-v$version"
+          git push origin "maplibre-exact-v$version"

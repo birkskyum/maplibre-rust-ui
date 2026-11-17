@@ -9,7 +9,8 @@ options, all in JSON with MapLibre GL JS's names. The app sends the map commands
 looks the same whichever framework hosts the map.
 
 The core and the Slint, egui, Bevy, Native Shell and Whisker hosts are on crates.io, so an app adds
-its framework's host with `cargo add maplibre-slint` or the like.
+its framework's host with `cargo add maplibre-slint` or the like. The Exact host is on npm, as
+`maplibre-exact`.
 
 **[The docs](https://birkskyum.github.io/maplibre-rust-ui/)** have how to use it, [the map model](https://birkskyum.github.io/maplibre-rust-ui/model/), each host, and
 [how it works](https://birkskyum.github.io/maplibre-rust-ui/design/).
@@ -43,7 +44,8 @@ The docs build with `uvx zensical serve`, from this folder.
 
 ## Releasing
 
-The core and the Slint, egui, Bevy, Native Shell and Whisker hosts go on crates.io. The Release
-workflow, run by hand, publishes each whose version in its `Cargo.toml` isn't there yet, the core
-first, and tags it. A new version of the core needs the hosts' `maplibre-rust-ui` versions raised with
-it, since each host is a workspace of its own.
+The core and the Slint, egui, Bevy, Native Shell and Whisker hosts go on crates.io, and the Exact
+host goes on npm. The Release workflow, run by hand, publishes each whose version isn't there yet, the
+crates first with the core first, and tags it. npm trusts the workflow to publish the Exact package,
+so it needs no token. A new version of the core needs the hosts' `maplibre-rust-ui` versions raised
+with it, and the Exact package's lock, since each host is a workspace of its own.

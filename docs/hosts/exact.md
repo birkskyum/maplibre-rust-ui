@@ -51,12 +51,16 @@ uses all of it.
 ## Using it
 
 The map is an Exact package, [`exact/package`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/package),
-whose `exact.json` declares the `maplibre` surface. An app adds it and places the canvas, with no
-Rust of its own:
+whose `exact.json` declares the `maplibre` surface. It is on npm as
+[`maplibre-exact`](https://www.npmjs.com/package/maplibre-exact). An app on Exact `d69b9614f` or later
+adds it and places the canvas, with no Rust of its own:
 
 ```sh
-bun exact.mjs add ../maplibre-rust-ui/exact/package
+bun exact.mjs add maplibre-exact@0.1.0
 ```
+
+Exact takes a package from npm by its name and version, and one in a checkout by its folder
+(`bun exact.mjs add ../maplibre-rust-ui/exact/package`).
 
 Exact builds the package's crate into a GPU module of its own. The crate takes `maplibre-rust-ui`
 from crates.io, and on Android gives mln-rs the app's Java VM and context, which it fetches the
