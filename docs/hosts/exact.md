@@ -21,11 +21,6 @@ canvas surface=maplibre(style="https://tiles.openfreemap.org/styles/liberty", lo
   in place and the rest by adding and removing layers and sources. The content can also set the
   style's `projection` (a globe), `sky`, `light` and `terrain` over the base style's, and values for
   its `global-state` expressions in `state`.
-- `markers` in the content holds the canvas's children at places on the map, by their `testId`, as GL
-  JS's `Marker` holds an element (`{"callout": {"lngLat": [8.54, 47.38], "anchor": "bottom"}}`). A
-  marker is the app's own Contract, so it keeps its taps and its accessibility, and Exact reports it
-  where the map put it. Markers turn and tilt with the map as GL JS's do, and one without a place
-  is a compass.
 - `options` limits the camera and turns gestures off, with GL JS's `MapOptions` names (`minZoom`,
   `maxZoom`, `minPitch`, `maxPitch`, `maxBounds`, `interactive`, `dragRotate`, `pitchWithRotate`,
   `touchPitch`, `scrollZoom`).
@@ -62,9 +57,27 @@ bun exact.mjs add maplibre-exact@0.1.0
 Exact takes a package from npm by its name and version, and one in a checkout by its folder
 (`bun exact.mjs add ../maplibre-rust-ui/exact/package`).
 
-Exact builds the package's crate into a GPU module of its own. The crate takes `maplibre-rust-ui`
-from crates.io, and on Android gives mln-rs the app's Java VM and context, which it fetches the
-style and tiles through.
+Exact builds the package's crate into a GPU module of its own. The crate builds on Exact's
+`exact-gpu` 0.2 and takes `maplibre-rust-ui` from crates.io, and on Android gives mln-rs the app's
+Java VM and context, which it fetches the style and tiles through.
+
+## Markers
+
+`markers` in the content holds the canvas's children at places on the map, by their `testId`, as GL
+JS's `Marker` holds an element. A marker is the app's own Contract, so it keeps its taps and its
+accessibility, and Exact reports it where the map put it. Markers turn and tilt with the map as GL
+JS's do. One without a place stays where the app laid it out and turns with the map's bearing, as a
+compass does.
+
+```text
+// in the content: "markers": {"callout": {"lngLat": [8.5402, 47.3779], "anchor": "bottom"}, "compass": {"rotationAlignment": "map"}}
+canvas surface=maplibre(…) testId="map"
+  button press=resetNorth aria-label="Reset bearing to north" testId="compass" position="absolute" top=10 right=10
+    image "assets/compass.png" width=24 height=24 aria-hidden=true
+  column position="absolute" testId="callout"
+    text chosenName font-weight=600
+    button "Fly here" press=flyChosen
+```
 
 ## Running the example
 
@@ -85,3 +98,11 @@ bun exact.mjs android --run        # on a connected Android phone
 ```
 
 [Design](../design.md#what-exact-would-need-to-change) has what Exact would need to change.
+
+## Not done yet
+
+- The web, which Exact builds for too. Exact's GPU module runs on the page's thread with the page's
+  WebGPU device, while mln-rs's browser build runs its map in a Web Worker on an `OffscreenCanvas`
+  ([Design](../design.md#what-mln-rs-would-need)).
+- Linux and Windows, which Exact builds for too, but which haven't been tried.
+- A trackpad's rotation, which Exact doesn't pass to a surface yet.

@@ -17,6 +17,9 @@ so shift-drag to zoom to a box and ctrl-drag to rotate work.
 cargo add maplibre-slint
 ```
 
+It builds on Slint 1.18, with its wgpu 30 renderer, and [its API](https://docs.rs/maplibre-slint) is
+on docs.rs.
+
 The app's UI imports the map and its global from the library this crate ships, and exports the global
 and the struct of markers' places:
 

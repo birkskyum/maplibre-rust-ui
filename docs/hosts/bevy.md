@@ -19,6 +19,8 @@ input of the app's own.
 cargo add maplibre-bevy
 ```
 
+It builds on Bevy 0.20, and [its API](https://docs.rs/maplibre-bevy) is on docs.rs.
+
 ```rust
 App::new()
     .add_plugins((DefaultPlugins, MapLibrePlugin))

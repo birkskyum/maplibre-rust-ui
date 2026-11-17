@@ -18,6 +18,9 @@ a trackpad's scroll, pinch and rotation, and touches.
 cargo add maplibre-egui
 ```
 
+It builds on egui and egui-wgpu 0.37, as eframe 0.37 has them, and
+[its API](https://docs.rs/maplibre-egui) is on docs.rs.
+
 An eframe app renders with wgpu, keeps an `EguiMap` and shows it with the renderer's state:
 
 ```rust

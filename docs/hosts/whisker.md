@@ -36,6 +36,9 @@ map's record, and sends commands through a `MapHandle`. A click is `on_map_click
 cargo add maplibre-whisker
 ```
 
+It builds on Whisker 0.18.1, whose Swift package is 0.1.22, and
+[its API](https://docs.rs/maplibre-whisker) is on docs.rs.
+
 ```rust
 let map = MapHandle::new();
 render! {

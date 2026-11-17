@@ -21,6 +21,9 @@ Zed has it.
 
 ## Using it
 
+It builds on GPUI from Zed at `dc93abce`, with that change. It isn't on crates.io, so an app takes it
+from a checkout of this repository, and `cargo doc` in `gpui` builds its API.
+
 A `GpuiMap` is an entity whose view is the map, filling the element it is in:
 
 ```rust
