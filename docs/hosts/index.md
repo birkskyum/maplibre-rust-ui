@@ -7,15 +7,15 @@ the core's API settles. Every host but Exact's drives its maps through the core'
 so an engine other than mln-rs, such as MapLibre Native or GL JS on the web, can stand in behind it
 without the hosts knowing.
 
-| Host | Crate | Runs on | Where the map draws |
-|---|---|---|---|
-| [Slint](slint.md) | `maplibre-slint` | macOS | A texture on Slint's wgpu device, which a Slint `Image` shows |
-| [egui](egui.md) | `maplibre-egui` | macOS | A texture on egui's wgpu device, which egui shows as an image |
-| [Bevy](bevy.md) | `maplibre-bevy` | macOS | A texture on Bevy's wgpu device, which a UI node shows |
-| [GPUI](gpui.md) | `maplibre-gpui` | macOS | A ring of IOSurfaces, which GPUI's Metal renderer samples |
-| [Native Shell](nsh.md) | `maplibre-nsh` | macOS, iOS | The `CAMetalLayer` of a native view of its own |
-| [Whisker](whisker.md) | `maplibre-whisker` | iOS, Android | The `CAMetalLayer` of a Swift view, or a Kotlin `SurfaceView` |
-| [Exact](exact.md) | `maplibre-exact` | macOS, iOS, Android | A texture on Exact's GPU canvas device, drawn into the canvas |
+| Host | Package | From | Runs on | Where the map draws |
+|---|---|---|---|---|
+| [Slint](slint.md) | `maplibre-slint` | [crates.io](https://crates.io/crates/maplibre-slint) | macOS | A texture on Slint's wgpu device, which a Slint `Image` shows |
+| [egui](egui.md) | `maplibre-egui` | [crates.io](https://crates.io/crates/maplibre-egui) | macOS | A texture on egui's wgpu device, which egui shows as an image |
+| [Bevy](bevy.md) | `maplibre-bevy` | [crates.io](https://crates.io/crates/maplibre-bevy) | macOS | A texture on Bevy's wgpu device, which a UI node shows |
+| [GPUI](gpui.md) | `maplibre-gpui` | a checkout | macOS | A ring of IOSurfaces, which GPUI's Metal renderer samples |
+| [Native Shell](nsh.md) | `maplibre-nsh` | [crates.io](https://crates.io/crates/maplibre-nsh) | macOS, iOS | The `CAMetalLayer` of a native view of its own |
+| [Whisker](whisker.md) | `maplibre-whisker` | [crates.io](https://crates.io/crates/maplibre-whisker) | iOS, Android | The `CAMetalLayer` of a Swift view, or a Kotlin `SurfaceView` |
+| [Exact](exact.md) | `maplibre-exact` | [npm](https://www.npmjs.com/package/maplibre-exact) | macOS, iOS, Android | A texture on Exact's GPU canvas device, drawn into the canvas |
 
 In no host is a frame copied on its way to the screen. The hosts that draw with wgpu lend the map a
 texture on their own device, which they sample when they draw their frame. GPUI draws with Metal of its

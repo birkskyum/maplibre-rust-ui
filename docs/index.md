@@ -9,9 +9,9 @@ match. The app sends the map commands such as `flyTo` and `fitBounds`, hears of 
 `click` and `moveend`, and reads the map's record. That side looks the same whichever framework
 hosts the map, and [the map model](model.md) describes it.
 
-Each framework has a host crate, which gives the map somewhere to draw and its input, and gives the app
-the model in the framework's own terms. Every host's example is the same app, Hello Map, a map of a few
-places in Zürich with a callout over the station.
+Each framework has a host, a crate or, for Exact, an npm package, which gives the map somewhere to draw
+and its input, and gives the app the model in the framework's own terms. Every host's example is the
+same app, Hello Map, a map of a few places in Zürich with a callout over the station.
 
 <div class="grid cards" markdown>
 

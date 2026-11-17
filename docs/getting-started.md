@@ -30,7 +30,8 @@ Each folder pins its toolchain in `rust-toolchain.toml`, Rust 1.99.1, since mln-
 
 ## Running a host's example
 
-Each host folder is a Cargo workspace of its own, with the same example, Hello Map. It is a map of a
+Each host folder has the same example, Hello Map, and each but Exact's is a Cargo workspace of its
+own. It is a map of a
 few places in Zürich, which a tap names, with buttons that fly there, fit them in view and turn the
 globe on, and a callout over the station. Most hosts also take a short walk on their own, which loads
 the map, flies to Zürich, taps Zürich HB and fits the places in view, and saves what it shows.
