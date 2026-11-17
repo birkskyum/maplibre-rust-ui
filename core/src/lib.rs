@@ -14,6 +14,7 @@
 //! The mln-rs crates a host needs are re-exported, so that a host and the
 //! engine agree on one version of them.
 
+mod cache;
 mod camera;
 pub mod component;
 mod content;
@@ -23,6 +24,7 @@ pub mod placement;
 mod requests;
 pub mod texture;
 
+pub use cache::set_cache_path;
 pub use engine::{Engine, Phase, Pointer, Viewport};
 pub use {
     mln_gestures as gestures, mln_image as image, mln_map as map, mln_runtime as runtime, mln_util as util,

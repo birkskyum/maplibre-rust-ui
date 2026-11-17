@@ -554,6 +554,8 @@ pub unsafe fn android_init(
     // SAFETY: the caller's contract.
     unsafe { mln_system_fonts::android::init(jni_env.as_ptr()) };
     // SAFETY: the caller's contract.
+    unsafe { crate::cache::android_init(jni_env.as_ptr(), context.as_ptr()) }?;
+    // SAFETY: the caller's contract.
     unsafe { mln_storage::android::init(jni_env.as_ptr(), context.as_ptr()) }.map_err(|error| error.to_string())
 }
 

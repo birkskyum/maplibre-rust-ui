@@ -2951,6 +2951,7 @@ dependencies = [
 name = "maplibre-rust-ui"
 version = "0.2.0"
 dependencies = [
+ "jni",
  "mln-rs-conversion",
  "mln-rs-feature",
  "mln-rs-gestures",

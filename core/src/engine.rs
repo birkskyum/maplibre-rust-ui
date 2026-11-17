@@ -199,7 +199,17 @@ impl Engine {
         driver: Driver,
     ) -> Result<Engine, String> {
         let fail = |e: mln_runtime::Error| format!("maplibre: {}", e.message);
-        let runtime = Runtime::new(&RuntimeOptions::default()).map_err(fail)?;
+        // A cache database the runtime can't open leaves the cache in memory,
+        // and the app hears why.
+        let cached = crate::cache::path().and_then(|cache_path| {
+            Runtime::new(&RuntimeOptions { cache_path, ..RuntimeOptions::default() }).map_err(|e| e.message)
+        });
+        let (runtime, cache_failure) = match cached {
+            Ok(runtime) => (runtime, None),
+            Err(why) => {
+                (Runtime::new(&RuntimeOptions::default()).map_err(fail)?, Some(format!("maplibre: cache: {why}")))
+            }
+        };
         let events = Arc::new(Mutex::new(Vec::new()));
         let sink = events.clone();
         // The handler takes effect before the map is made, on the runtime's
@@ -268,7 +278,7 @@ impl Engine {
             newest: None,
             click: None,
             contextmenu: None,
-            error: None,
+            error: cache_failure,
             refusal: None,
             attribution: String::new(),
             bounds: None,
@@ -1024,6 +1034,7 @@ mod tests {
     }
 
     fn engine_of(style: &str, options: Options) -> Engine {
+        crate::set_cache_path(Some(std::env::temp_dir().join("maplibre-rust-ui-tests").join("maplibre.db")));
         let inputs = Inputs {
             style: style.to_owned(),
             camera: Camera { center: ZURICH, zoom: 10.0, bearing: 0.0, pitch: 0.0 },
@@ -1123,5 +1134,36 @@ mod tests {
         };
         assert_eq!(head.first().map(String::as_str), Some("GET /style.json?key=k HTTP/1.1"));
         assert!(head.iter().any(|line| line.eq_ignore_ascii_case("authorization: Bearer t")), "{head:?}");
+    }
+
+    #[test]
+    fn a_map_loads_from_the_cache_on_disk_what_an_earlier_map_loaded() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap_or_else(|e| panic!("{e}"));
+        let port = listener.local_addr().map(|address| address.port()).unwrap_or_default();
+        // One answer, then nothing listens on the port.
+        let served = std::thread::spawn(move || {
+            let Some(Ok(mut stream)) = listener.incoming().next() else { return };
+            let Ok(read) = stream.try_clone() else { return };
+            let _head: Vec<String> =
+                BufReader::new(read).lines().map_while(Result::ok).take_while(|line| !line.is_empty()).collect();
+            let body = r#"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background"}]}"#;
+            let _ = write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+        });
+        let style = format!("http://127.0.0.1:{port}/style.json");
+        let mut now = 0.0;
+        let mut first = engine_of(&style, Options::default());
+        until(&mut first, &mut now, |record| record.loaded);
+        drop(first);
+        let _ = served.join();
+        let mut second = engine_of(&style, Options::default());
+        let record = until(&mut second, &mut now, |record| record.loaded || record.failure.is_some());
+        assert!(record.loaded, "{:?}", record.failure);
     }
 }

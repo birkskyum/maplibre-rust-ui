@@ -42,6 +42,8 @@ mln_actor = { package = "mln-rs-actor", path = "../../mln-rs/crates/mln_actor", 
 metal = ["mln_runtime/metal"]
 
 [target.'cfg(target_os = "android")'.dependencies]
+# To ask the app's context for its cache directory.
+jni = { version = "0.22.4", default-features = false }
 raw-window-handle = "0.6.2"
 # For their Android setup, which needs the app's Java VM and context.
 mln_storage = { package = "mln-rs-storage", path = "../../mln-rs/crates/mln_storage", version = "0.0.12" }
