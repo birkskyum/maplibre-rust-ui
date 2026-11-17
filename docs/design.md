@@ -241,7 +241,8 @@ Five needs are met.
   iPhone (the compass turning there on the iOS 26.5 simulator, since the phone's Metal HUD sits
   over it). The globe, the relief and the located dot on macOS and Android. On the iPhone the map took 1.5 ms of GPU time a frame while panning. Android draws with
   wgpu's Vulkan backend, and mln-rs fetched over its ureq transport there before 0.0.12, where Apple
-  uses NSURLSession.
+  uses NSURLSession. With the map as a package, on Exact `42e805cd3`, the Pixel and the iPhone
+  drew the style, flew to Zürich and showed a pin's callout.
 - A phone build needs a development profile for the app's bundle id that includes the phone. Exact
   uses one that is installed and doesn't create it, so the first time it is made with Xcode's
   automatic signing (`xcodebuild -allowProvisioningUpdates` on any app target with the bundle id).
