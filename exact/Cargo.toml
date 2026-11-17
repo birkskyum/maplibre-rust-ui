@@ -9,8 +9,3 @@ publish = false
 [dependencies]
 exact-gpu = { path = "../../exact/gpu" }
 maplibre-rust-ui = { path = "../core" }
-
-# For the app's Java VM and context, which mln-rs needs on Android.
-[target.'cfg(target_os = "android")'.dependencies]
-jni = "0.21.1"
-libc = "0.2"

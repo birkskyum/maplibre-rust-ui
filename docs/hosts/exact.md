@@ -50,7 +50,9 @@ uses all of it.
 
 ## Using it
 
-Exact registers surfaces in the app's own GPU module, so an app names this one in `gpu/src/lib.rs`:
+Exact registers surfaces in the app's own GPU module, so an app names this one in `gpu/src/lib.rs`.
+The `android_init!` line gives mln-rs the app's Java VM and context on Android, which it fetches
+the style and tiles through, and compiles to nothing on other platforms.
 
 ```rust
 pub static REGISTRY: exact_gpu::Registry = exact_gpu::Registry {
@@ -58,19 +60,20 @@ pub static REGISTRY: exact_gpu::Registry = exact_gpu::Registry {
     shaders: &[],
 };
 exact_gpu::module!(REGISTRY);
+exact_gpu::android_init!(|android| unsafe { maplibre_exact::android_init(android) });
 ```
 
 ## Running the example
 
 Clone Exact and mln-rs next to this repository and apply the patch in
 [`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches) to Exact, on
-the commits this was last built on, Exact `24648619` and mln-rs `v0.0.12`. The patch captures each
+the commits this was last built on, Exact `5a5cc8bb` and mln-rs `v0.0.12`. The patch captures each
 child of a canvas on the CPU on iOS, since the GPU capture gives markers blank or wrong pixels
 ([expo/exact#425](https://github.com/expo/exact/issues/425)).
 
 ```sh
 git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-exact v0.0.12
-git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 24648619
+git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 5a5cc8bb
 git -C exact am "$PWD"/maplibre-rust-ui/exact/patches/exact/*.patch
 bun exact/scripts/exact.mjs setup
 ```

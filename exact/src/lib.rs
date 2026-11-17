@@ -15,7 +15,23 @@
 //!     shaders: &[],
 //! };
 //! exact_gpu::module!(REGISTRY);
+//! exact_gpu::android_init!(|android| unsafe { maplibre_exact::android_init(android) });
 //! ```
 
 pub mod mln;
 pub mod protocol;
+
+/// Gives mln-rs the app's Java VM and application context on Android, which it fetches HTTP and
+/// reads the app's assets through. The app calls it from Exact's `android_init!` beside
+/// `module!`, before any map.
+///
+/// # Safety
+///
+/// `android` is what Exact gives `android_init!`: the calling thread's `JNIEnv*` and a live
+/// reference to the application `Context`.
+#[cfg(target_os = "android")]
+pub unsafe fn android_init(android: exact_gpu::android::Android) -> Result<(), String> {
+    let env = std::ptr::NonNull::new(android.env).ok_or("no JNIEnv")?;
+    let context = std::ptr::NonNull::new(android.context).ok_or("no application Context")?;
+    unsafe { maplibre_rust_ui::component::android_init(env, context) }
+}

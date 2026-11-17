@@ -1,4 +1,4 @@
-From 6721c6bad1be5c22973ee540a97344ecc75b614c Mon Sep 17 00:00:00 2001
+From db466af37cd9b893b05d0ef3ff1cd17fbc804d9d Mon Sep 17 00:00:00 2001
 From: Birk Skyum <birk.skyum@pm.me>
 Date: Thu, 12 Nov 2026 21:11:27 +0100
 Subject: [PATCH] Capture a canvas's children one by one on the CPU on iOS
@@ -30,7 +30,7 @@ index ac737811..f3c0dbd7 100644
              let ok = shadow.render(view, scale: scale, into: bitmap)
              capturing = false
 diff --git a/host/apple/Sources/ExactSurfaces/GpuIOS.swift b/host/apple/Sources/ExactSurfaces/GpuIOS.swift
-index 5cc11727..fb085b19 100644
+index 35a87b52..2165b643 100644
 --- a/host/apple/Sources/ExactSurfaces/GpuIOS.swift
 +++ b/host/apple/Sources/ExactSurfaces/GpuIOS.swift
 @@ -406,7 +406,10 @@ final class CanvasesHost {

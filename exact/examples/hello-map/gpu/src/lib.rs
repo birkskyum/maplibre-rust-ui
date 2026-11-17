@@ -7,3 +7,4 @@ pub static REGISTRY: Registry =
     Registry { surfaces: &[("maplibre", maplibre_exact::protocol::ARITY, maplibre_exact::mln::surface)], shaders: &[] };
 
 exact_gpu::module!(REGISTRY);
+exact_gpu::android_init!(|android| unsafe { maplibre_exact::android_init(android) });
