@@ -64,13 +64,10 @@ style and tiles through.
 
 ## Running the example
 
-Clone Exact next to this repository, on the commit this was last built on, `42e805cd3`, and apply
-the one patch in [`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches),
-which lets the package's lock keep the serde_json 1.0.154 that mln-rs needs.
+Clone Exact next to this repository, on the commit this was last built on, `d69b9614f`:
 
 ```sh
-git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 42e805cd3
-git -C exact am ../maplibre-rust-ui/exact/patches/*.patch
+git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact d69b9614f
 bun exact/scripts/exact.mjs setup
 ```
 

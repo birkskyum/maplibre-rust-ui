@@ -134,7 +134,7 @@ deltas maplibre-native-ffi's C API takes.
 
 ## What Exact would need to change
 
-Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `42e805cd3`.
+Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `d69b9614f`.
 Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://github.com/expo/exact/issues/426) (2, 3), [#427](https://github.com/expo/exact/issues/427) (1) and [#428](https://github.com/expo/exact/issues/428) (4), [#743](https://github.com/expo/exact/issues/743) (11) and [#809](https://github.com/expo/exact/issues/809) (12).
 
 1. **A package couldn't ship a GPU surface.** Surfaces were registered in the app's own `gpu/` crate,
@@ -175,10 +175,9 @@ Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://git
     which the module exports as it does any `#[no_mangle]` function of its crates.
 12. **A package's lock gave exact-gpu's crates the SDK's versions** of the crates it shares with
     them, so the SDK's serde_json 1.0.151 replaced the 1.0.154 that mln-rs needs and the build
-    stopped, as in #426 ([#809](https://github.com/expo/exact/issues/809)). The patch in
-    `exact/patches` leaves the package's own versions of those crates, which works for this
-    package's lock, where the crates only exact-gpu uses agree with the shared ones. A freshly
-    resolved lock can still clash there (crypto-common 0.1.7 pins generic-array 0.14.7).
+    stopped, as in #426 ([#809](https://github.com/expo/exact/issues/809)). Fixed in
+    `d69b9614f`, which keeps the package's newer compatible versions and otherwise starts from the
+    package's whole lock, so a freshly resolved lock builds too.
 
 ## What mln-rs would need
 
@@ -243,8 +242,9 @@ Five needs are met.
   iPhone (the compass turning there on the iOS 26.5 simulator, since the phone's Metal HUD sits
   over it). The globe, the relief and the located dot on macOS and Android. On the iPhone the map took 1.5 ms of GPU time a frame while panning. Android draws with
   wgpu's Vulkan backend, and mln-rs fetched over its ureq transport there before 0.0.12, where Apple
-  uses NSURLSession. With the map as a package, on Exact `42e805cd3`, the Pixel and the iPhone
-  drew the style, flew to Zürich and showed a pin's callout.
+  uses NSURLSession. With the map as a package, the Pixel and the iPhone drew the style, flew to
+  Zürich and showed a pin's callout on Exact `42e805cd3`, and the iPhone and the iOS 26.5
+  simulator again on `d69b9614f`.
 - A phone build needs a development profile for the app's bundle id that includes the phone. Exact
   uses one that is installed and doesn't create it, so the first time it is made with Xcode's
   automatic signing (`xcodebuild -allowProvisioningUpdates` on any app target with the bundle id).

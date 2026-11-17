@@ -3,8 +3,8 @@
 # <crate>-v<version>. A crate whose version is on crates.io already is
 # skipped, so a run after one that stopped halfway publishes the rest. Each
 # host is its own workspace, so the hosts' versions of the core are bumped by
-# hand with the core's. GPUI's and Exact's hosts aren't published, since they
-# build on a changed GPUI and a patched Exact.
+# hand with the core's. GPUI's host isn't published, since it builds on a
+# changed GPUI, and Exact's is an Exact package rather than a crate.
 name: Release
 
 on:
