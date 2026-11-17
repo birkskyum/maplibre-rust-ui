@@ -18,9 +18,10 @@ its framework's host with `cargo add maplibre-slint` or the like.
 
 - [`core`](core) is the `maplibre-rust-ui` crate, the map an app declares and the engine that draws
   it with mln-rs's runtime into what a host gives it ([API](https://birkskyum.github.io/maplibre-rust-ui/api/maplibre_rust_ui/)).
-- [`slint`](slint), [`egui`](egui), [`bevy`](bevy) and [`gpui`](gpui) are the map in
-  [Slint](https://birkskyum.github.io/maplibre-rust-ui/hosts/slint/), [egui](https://birkskyum.github.io/maplibre-rust-ui/hosts/egui/), [Bevy](https://birkskyum.github.io/maplibre-rust-ui/hosts/bevy/) and
-  [GPUI](https://birkskyum.github.io/maplibre-rust-ui/hosts/gpui/) apps, on macOS.
+- [`slint`](slint) is the map in [Slint](https://birkskyum.github.io/maplibre-rust-ui/hosts/slint/) apps, on macOS.
+- [`egui`](egui) is the map in [egui](https://birkskyum.github.io/maplibre-rust-ui/hosts/egui/) apps, on macOS.
+- [`bevy`](bevy) is the map in [Bevy](https://birkskyum.github.io/maplibre-rust-ui/hosts/bevy/) apps, on macOS.
+- [`gpui`](gpui) is the map in [GPUI](https://birkskyum.github.io/maplibre-rust-ui/hosts/gpui/) apps, on macOS.
 - [`nsh`](nsh) is the map in [Native Shell](https://birkskyum.github.io/maplibre-rust-ui/hosts/nsh/) apps, on macOS and iOS.
 - [`whisker`](whisker) is the map in [Whisker](https://birkskyum.github.io/maplibre-rust-ui/hosts/whisker/) apps, on iOS and Android.
 - [`exact`](exact) is the map in [Exact](https://birkskyum.github.io/maplibre-rust-ui/hosts/exact/) apps, on macOS, iOS and Android.
