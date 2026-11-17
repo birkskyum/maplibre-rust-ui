@@ -1,6 +1,6 @@
 [package]
 name = "maplibre-bevy"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 description = "MapLibre maps in Bevy apps, drawn by mln-rs on Bevy's wgpu renderer"
@@ -16,4 +16,4 @@ members = ["examples/hello-map"]
 
 [dependencies]
 bevy = { version = "0.20", default-features = false, features = ["bevy_render", "bevy_sprite_render", "bevy_ui", "bevy_window"] }
-maplibre-rust-ui = { path = "../core", version = "0.1.0" }
+maplibre-rust-ui = { path = "../core", version = "0.2.0" }

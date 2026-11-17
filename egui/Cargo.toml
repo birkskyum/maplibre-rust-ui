@@ -1,6 +1,6 @@
 [package]
 name = "maplibre-egui"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 description = "MapLibre maps in egui apps, drawn by mln-rs on egui's wgpu renderer"
@@ -17,4 +17,4 @@ members = ["examples/hello-map"]
 [dependencies]
 egui = "0.37"
 egui-wgpu = "0.37"
-maplibre-rust-ui = { path = "../core", version = "0.1.0" }
+maplibre-rust-ui = { path = "../core", version = "0.2.0" }

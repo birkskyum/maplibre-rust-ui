@@ -1,6 +1,6 @@
 [package]
 name = "maplibre-whisker"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 description = "MapLibre maps in Whisker apps, drawn by mln-rs into a native view"
@@ -26,7 +26,7 @@ ios = { manifest = "apple/Package.swift" }
 macos = { manifest = "apple/Package.swift" }
 
 [dependencies]
-maplibre-rust-ui = { path = "../core", version = "0.1.1" }
+maplibre-rust-ui = { path = "../core", version = "0.2.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 whisker = "0.18.1"

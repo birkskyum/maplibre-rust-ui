@@ -1,6 +1,6 @@
 [package]
 name = "maplibre-slint"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 description = "MapLibre maps in Slint apps, drawn by mln-rs on Slint's wgpu renderer"
@@ -19,5 +19,5 @@ build = "build.rs"
 members = ["examples/hello-map"]
 
 [dependencies]
-maplibre-rust-ui = { path = "../core", version = "0.1.0" }
+maplibre-rust-ui = { path = "../core", version = "0.2.0" }
 slint = { version = "1.18", features = ["unstable-wgpu-30", "renderer-femtovg-wgpu"] }
