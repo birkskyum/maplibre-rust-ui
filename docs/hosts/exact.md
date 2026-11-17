@@ -52,7 +52,7 @@ whose `exact.json` declares the `maplibre` surface. It is on npm as
 adds it and places the canvas, with no Rust of its own:
 
 ```sh
-bun exact.mjs add maplibre-exact@0.1.0
+bun exact.mjs add maplibre-exact@0.2.0
 ```
 
 Exact takes a package from npm by its name and version, and one in a checkout by its folder

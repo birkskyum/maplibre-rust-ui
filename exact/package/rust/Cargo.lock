@@ -1540,7 +1540,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "maplibre-exact"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "exact-gpu",
  "maplibre-rust-ui",
@@ -1548,9 +1548,9 @@ dependencies = [
 
 [[package]]
 name = "maplibre-rust-ui"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9eefbba408b3b29cedbc594973144809458fbeac700f81d6dbf92d359e5d063"
+checksum = "dcc95da4b98ae39cf5ccb20d9808e644ff5d597790943911978fa729da809a3e"
 dependencies = [
  "mln-rs-conversion",
  "mln-rs-feature",

@@ -6,7 +6,7 @@ MapLibre maps in [Exact](https://github.com/expo/exact) apps, drawn by
 An app adds it with Exact's `add` verb, on Exact `d69b9614f` or later:
 
 ```sh
-bun exact.mjs add maplibre-exact@0.1.0
+bun exact.mjs add maplibre-exact@0.2.0
 ```
 
 Then it draws a map on a canvas:

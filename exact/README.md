@@ -5,7 +5,7 @@ MapLibre maps in [Exact](https://github.com/expo/exact) apps, drawn by mln-rs th
 runs on macOS, iOS and Android.
 
 The map is the Exact package in [`package`](package), on npm as `maplibre-exact`, which an app
-adds with `bun exact.mjs add maplibre-exact@0.1.0`.
+adds with `bun exact.mjs add maplibre-exact@0.2.0`.
 
 [Its page in the docs](https://birkskyum.github.io/maplibre-rust-ui/hosts/exact/) has how to use it
 and run its example,

@@ -1,6 +1,6 @@
 [package]
 name = "maplibre-exact"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 description = "MapLibre maps in Exact apps, drawn by mln-rs on Exact's GPU canvas"
@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 exact-gpu = "0.2"
-maplibre-rust-ui = "0.1.1"
+maplibre-rust-ui = "0.2.0"
 
 # Exact builds the package's crate in a workspace it generates.
 [workspace]
