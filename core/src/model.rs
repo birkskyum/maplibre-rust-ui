@@ -13,6 +13,8 @@
 //! error in its record ([`Record`]). The names follow MapLibre GL JS and the
 //! MapLibre Style Specification.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value as Json};
 
@@ -381,6 +383,40 @@ pub struct Options {
     pub touch_pitch: Option<bool>,
     /// Whether a wheel or trackpad scroll zooms.
     pub scroll_zoom: Option<bool>,
+    /// How the map sends its requests, as GL JS's `transformRequest` answers,
+    /// written as rules: a request takes the first whose `prefix` its URL
+    /// starts with.
+    pub transform_request: Option<Vec<RequestRule>>,
+}
+
+/// A rule for the map's requests whose URL starts with `prefix`, and are of
+/// one of `resourceTypes` when it names them, as GL JS's `transformRequest`
+/// would answer for them: `url` replaces the prefix, `query` parameters are
+/// added, and `headers` go with the request.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RequestRule {
+    pub prefix: String,
+    pub resource_types: Option<Vec<ResourceType>>,
+    pub url: Option<String>,
+    #[serde(default)]
+    pub query: BTreeMap<String, String>,
+    #[serde(default)]
+    pub headers: BTreeMap<String, String>,
+}
+
+/// What a request is for, with GL JS's `ResourceType` names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+pub enum ResourceType {
+    Unknown,
+    Style,
+    Source,
+    Tile,
+    Glyphs,
+    SpriteImage,
+    #[serde(rename = "SpriteJSON")]
+    SpriteJson,
+    Image,
 }
 
 impl Options {
@@ -393,7 +429,19 @@ impl Options {
         if text.trim().is_empty() {
             return Ok(Options::default());
         }
-        serde_json::from_str(text).map_err(|e| format!("maplibre: options: {e}"))
+        let options: Options = serde_json::from_str(text).map_err(|e| format!("maplibre: options: {e}"))?;
+        for rule in options.transform_request.iter().flatten() {
+            if rule.prefix.is_empty() {
+                return Err("maplibre: options: a transformRequest rule's prefix is empty".into());
+            }
+            if rule.url.is_none() && rule.query.is_empty() && rule.headers.is_empty() {
+                return Err(format!(
+                    "maplibre: options: the transformRequest rule for {} sets no url, query or headers",
+                    rule.prefix
+                ));
+            }
+        }
+        Ok(options)
     }
 
     /// Whether gestures move the camera at all.
@@ -702,6 +750,26 @@ mod tests {
                 duration: Some(2000.0),
             }))
         );
+    }
+
+    #[test]
+    fn options_take_rules_for_requests() {
+        let options = Options::parse(
+            r#"{"transformRequest":[{"prefix":"https://tiles.example/","resourceTypes":["Tile","SpriteJSON"],
+                "url":"https://cdn.example/","query":{"key":"k"},"headers":{"Authorization":"Bearer t"}}]}"#,
+        );
+        let Ok(Options { transform_request: Some(rules), .. }) = options else { panic!("{options:?}") };
+        assert_eq!(rules[0].resource_types, Some(vec![ResourceType::Tile, ResourceType::SpriteJson]));
+        assert_eq!(rules[0].headers["Authorization"], "Bearer t");
+        for bad in [
+            r#"[{"prefix":"","url":"https://cdn.example/"}]"#,
+            r#"[{"prefix":"https://tiles.example/"}]"#,
+            r#"[{"prefix":"https://tiles.example/","headers":{"X-Count":3}}]"#,
+            r#"[{"prefix":"https://tiles.example/","url":"x","resourceTypes":["Font"]}]"#,
+            r#"[{"prefix":"https://tiles.example/","url":"x","method":"POST"}]"#,
+        ] {
+            assert!(Options::parse(&format!(r#"{{"transformRequest":{bad}}}"#)).is_err(), "{bad}");
+        }
     }
 
     #[test]

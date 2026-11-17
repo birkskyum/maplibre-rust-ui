@@ -25,6 +25,7 @@ mln_image = { package = "mln-rs-image", path = "../../mln-rs/crates/mln_image", 
 mln_map = { package = "mln-rs-map", path = "../../mln-rs/crates/mln_map", version = "0.0.12" }
 # Only for its font-face shaper, which the runtime's renderer then has.
 mln_renderer = { package = "mln-rs-renderer", path = "../../mln-rs/crates/mln_renderer", version = "0.0.12", features = ["font-face-shaper"] }
+mln_storage = { package = "mln-rs-storage", path = "../../mln-rs/crates/mln_storage", version = "0.0.12" }
 mln_runtime = { package = "mln-rs-runtime", path = "../../mln-rs/crates/mln_runtime", version = "0.0.12", default-features = false, features = ["webgpu"] }
 mln_style = { package = "mln-rs-style", path = "../../mln-rs/crates/mln_style", version = "0.0.12" }
 mln_util = { package = "mln-rs-util", path = "../../mln-rs/crates/mln_util", version = "0.0.12" }

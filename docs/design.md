@@ -122,7 +122,7 @@ from. It brings MapLibre to Compose Multiplatform, on MapLibre Native on Android
 on GL JS on the web, and its declarative map, where the app composes sources and layers over a base
 style and the map follows the app's state, is the model [the content](#content-the-way-maplibre-compose-does-it)
 copies. It is also much further along. It has typed expressions in Kotlin, Material 3 controls,
-offline downloads, a snapshotter, its own handling of map requests, a location layer, and the same
+offline downloads, a snapshotter, requests the app answers itself, a location layer, and the same
 map presented in CarPlay, Android Auto, UIKit, SwiftUI or React.
 
 The table follows its guides and says where maplibre-rust-ui is on each, so it doubles as a list of
@@ -139,7 +139,7 @@ what is still to learn from it.
 | Show the user's location | A location and heading provider, a location layer, and an effect that follows the user | The host's own location, such as Exact's `@exact/geolocation` in Hello Map, with the dot a marker. No location layer of its own |
 | Capture a map image | A snapshotter | Not yet |
 | Download maps for offline use | Offline downloads on every platform but the web | Not yet |
-| Rewrite or serve map requests | Requests the app rewrites or answers itself | Not yet |
+| Rewrite or serve map requests | Requests the app rewrites or answers itself | Rules that rewrite a request's URL, add query parameters and send headers, by URL prefix and resource type. The app doesn't answer requests itself yet |
 | Present outside Compose UI | The same map state shown in CarPlay, Android Auto, UIKit, SwiftUI or React | What the hosts do, one model shown in Slint, egui, Bevy, GPUI, Native Shell, Whisker and Exact |
 
 ## What Exact would need to change

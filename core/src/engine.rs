@@ -38,6 +38,7 @@ use crate::content::{self, Base};
 use crate::model::{
     self, Camera, CameraChange, Click, Command, Content, Event, Inputs, LngLat, Options, Padding, Point, Record,
 };
+use crate::requests;
 
 /// How long a touch stays still to be a long press, in milliseconds: iOS's
 /// `UILongPressGestureRecognizer` default, and about Android's.
@@ -80,7 +81,7 @@ pub struct Engine {
     /// host drives.
     driver: Option<DriverWork>,
     map: mln_runtime::Map,
-    _runtime: Runtime,
+    runtime: Runtime,
     /// Whether the target holds a frame of its size.
     drawn: bool,
     /// The view of the last frame drawn, which markers are placed for.
@@ -221,6 +222,8 @@ impl Engine {
         let (map, created) = runtime.create_map(options).map_err(fail)?;
         // The map has a snapshot once its thread made it, which takes moments.
         created.wait().map_err(fail)?;
+        let rules = inputs.options.transform_request.as_deref().unwrap_or_default();
+        requests::apply(&runtime, rules).map_err(|e| format!("maplibre: options: transformRequest: {}", e.message))?;
         load_style(&map, &inputs).map_err(fail)?;
         let jump = CameraUpdate { camera: camera_options(&everything(&inputs.camera)), ..Default::default() };
         let _jumped = map.update_camera(jump).map_err(fail)?;
@@ -237,7 +240,7 @@ impl Engine {
             session,
             driver,
             map,
-            _runtime: runtime,
+            runtime,
             drawn: false,
             drawn_view: None,
             drawn_update: 0,
@@ -337,6 +340,12 @@ impl Engine {
         }
         if inputs.options != self.applied.options {
             self.apply_options(&inputs.options);
+        }
+        if inputs.options.transform_request != self.applied.options.transform_request
+            && let Err(e) =
+                requests::apply(&self.runtime, inputs.options.transform_request.as_deref().unwrap_or_default())
+        {
+            self.error = Some(format!("maplibre: options: transformRequest: {}", e.message));
         }
         self.applied = inputs.clone();
     }
@@ -1010,11 +1019,16 @@ mod tests {
     /// A map of a plain style, 400 by 300 points, at zoom 10 over Zürich,
     /// rendering offscreen.
     fn engine() -> Engine {
+        let style = r#"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background"}]}"#;
+        engine_of(style, Options::default())
+    }
+
+    fn engine_of(style: &str, options: Options) -> Engine {
         let inputs = Inputs {
-            style: r#"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background"}]}"#.to_owned(),
+            style: style.to_owned(),
             camera: Camera { center: ZURICH, zoom: 10.0, bearing: 0.0, pitch: 0.0 },
             content: Content::default(),
-            options: Options::default(),
+            options,
             events: Vec::new(),
         };
         let size = Size::new(400, 300);
@@ -1067,5 +1081,47 @@ mod tests {
         // Four times the scale leaves a quarter of the way from the place to the center.
         let expected = place[0] + (ZURICH[0] - place[0]) / 4.0;
         assert!((record.camera.center[0] - expected).abs() < 1e-6, "{:?}, not {expected}", record.camera.center);
+    }
+
+    #[test]
+    fn requests_go_where_the_rules_say_with_their_query_and_headers() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap_or_else(|e| panic!("{e}"));
+        let port = listener.local_addr().map(|address| address.port()).unwrap_or_default();
+        let (heard, requests) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            for mut stream in listener.incoming().flatten() {
+                let Ok(read) = stream.try_clone() else { continue };
+                let head: Vec<String> =
+                    BufReader::new(read).lines().map_while(Result::ok).take_while(|line| !line.is_empty()).collect();
+                let body = r#"{"version":8,"sources":{},"layers":[]}"#;
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = heard.send(head);
+            }
+        });
+        let options = Options::parse(&format!(
+            r#"{{"transformRequest":[{{"prefix":"https://tiles.invalid/","url":"http://127.0.0.1:{port}/",
+                "query":{{"key":"k"}},"headers":{{"Authorization":"Bearer t"}}}}]}}"#
+        ))
+        .unwrap_or_else(|e| panic!("{e}"));
+        let mut engine = engine_of("https://tiles.invalid/style.json", options);
+        let (mut now, deadline) = (0.0, Instant::now() + Duration::from_secs(20));
+        let head = loop {
+            now += 16.0;
+            engine.frame(now, &HashMap::new(), &mut Vec::new());
+            if let Ok(head) = requests.try_recv() {
+                break head;
+            }
+            assert!(Instant::now() < deadline, "no request came: {:?}", engine.record().failure);
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        assert_eq!(head.first().map(String::as_str), Some("GET /style.json?key=k HTTP/1.1"));
+        assert!(head.iter().any(|line| line.eq_ignore_ascii_case("authorization: Bearer t")), "{head:?}");
     }
 }

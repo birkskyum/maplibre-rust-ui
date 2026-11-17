@@ -167,10 +167,37 @@ take is refused.
 | `pitchWithRotate` | Whether a drag with the rotating button pitches |
 | `touchPitch` | Whether two fingers moving up or down together pitch |
 | `scrollZoom` | Whether a wheel or a trackpad's scroll zooms |
+| `transformRequest` | Rules for the map's requests, below |
 
 The gestures are GL JS's, from mln-rs's gesture recognizer. A drag pans, a wheel or a pinch zooms, a
 double click zooms in, a right drag or a ctrl-drag turns and pitches, a shift-drag zooms to a box, two
 fingers turn and pitch, and the arrow keys and `+` and `-` move the map.
+
+### Requests
+
+`transformRequest` sends the map's requests as GL JS's `transformRequest` function would answer for
+them, written as rules, since a host such as Exact can't run a function of the app's for each request.
+A request takes the first rule whose `prefix` its URL starts with, and that rule's `resourceTypes`
+include, when it names them.
+
+```json
+"transformRequest": [
+  {"prefix": "https://tiles.example.com/", "headers": {"Authorization": "Bearer …"}},
+  {"prefix": "https://old.example.com/", "url": "https://cdn.example.com/"},
+  {"prefix": "https://api.example.com/", "resourceTypes": ["Source", "Tile"], "query": {"key": "…"}}
+]
+```
+
+| Field | What it is |
+|---|---|
+| `prefix` | The start of the URLs the rule covers |
+| `resourceTypes` | GL JS's `ResourceType`s the rule covers: `Style`, `Source`, `Tile`, `Glyphs`, `SpriteImage`, `SpriteJSON`, `Image` or `Unknown`. All of them when it names none |
+| `url` | What replaces the prefix |
+| `query` | Parameters added to the URL, such as an API key |
+| `headers` | Headers sent with the request, such as a token. Headers that the engine manages, such as `User-Agent` or `Range`, are left out |
+
+New rules apply to the requests the map makes from then on. In the browser, which sends a page's
+requests itself, a rule can't add headers.
 
 ## Commands
 

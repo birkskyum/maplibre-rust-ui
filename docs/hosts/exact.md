@@ -23,7 +23,8 @@ canvas surface=maplibre(style="https://tiles.openfreemap.org/styles/liberty", lo
   its `global-state` expressions in `state`.
 - `options` limits the camera and turns gestures off, with GL JS's `MapOptions` names (`minZoom`,
   `maxZoom`, `minPitch`, `maxPitch`, `maxBounds`, `interactive`, `dragRotate`, `pitchWithRotate`,
-  `touchPitch`, `scrollZoom`).
+  `touchPitch`, `scrollZoom`), and its `transformRequest` rules rewrite the map's requests and add
+  headers to them, such as a tile server's token.
 - The map takes the mouse with its modifier keys, a trackpad's scroll and pinch, and touches, with GL
   JS's gestures.
 - The map posts the events `events` lists (`load`, `moveend`, `click`, `contextmenu`, `error`) to
