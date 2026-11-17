@@ -46,7 +46,6 @@ The docs build with `uvx zensical serve`, from this folder.
 
 The core and the Slint, egui, Bevy, Native Shell and Whisker hosts go on crates.io, and the Exact
 host goes on npm. The Release workflow, run by hand, publishes each whose version isn't there yet, the
-crates first with the core first, and tags it. npm trusts the workflow with the Exact package, so it
-needs no token, and the workflow only stages a version, which a maintainer publishes with 2FA
-(`npm stage approve`, or on npmjs.com). A new version of the core needs the hosts' `maplibre-rust-ui`
-versions raised with it, and the Exact package's lock, since each host is a workspace of its own.
+crates first with the core first, and tags it. npm trusts the workflow to publish the Exact package,
+so it needs no token. A new version of the core needs the hosts' `maplibre-rust-ui` versions raised
+with it, and the Exact package's lock, since each host is a workspace of its own.
