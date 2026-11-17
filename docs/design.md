@@ -134,7 +134,7 @@ deltas maplibre-native-ffi's C API takes.
 
 ## What Exact would need to change
 
-Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `5a5cc8bb`.
+Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `170751e3`.
 Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://github.com/expo/exact/issues/426) (2, 3), [#427](https://github.com/expo/exact/issues/427) (1) and [#428](https://github.com/expo/exact/issues/428) (4) and [#743](https://github.com/expo/exact/issues/743) (11).
 
 1. **A package can't ship a GPU surface.** Surfaces are registered in the app's own `gpu/` crate, so
@@ -162,13 +162,10 @@ Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://git
    field named `error` reads as a refused canvas and stops a drive. The record says `failure`.
 9. **An app's own workspace isn't given a new platform's crate** by the native verb, only by
    `exact update`, which a GPU module's app has to know to run.
-10. **iOS hands a surface the wrong pixels for its children one by one** (`ChildrenMode::Each`).
-    The GPU capture (`Shadow`) reads its target back before `CARenderer` has drawn the child, so
-    each child gets what the last capture of its size left there, or nothing in a new target: the
-    compass showed the locate button's arrow, and the callout was blank. It shows on an iPhone 17
-    Pro (iOS 27.2) and the iOS 26.5 simulator, and `EXACT_CAPTURE=cpu` cures it. The prototype
-    captures each child on the CPU ([`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches)), which costs little for
-    children the size of markers.
+10. **iOS handed a surface the wrong pixels for its children one by one** (`ChildrenMode::Each`).
+    The compass showed the locate button's arrow, and the callout was blank, on an iPhone 17 Pro
+    (iOS 27.2) and the iOS 26.5 simulator. Fixed in `9c487235d`, where the GPU capture draws only a
+    layer tree Core Animation has committed. The prototype had captured each child on the CPU.
 11. **A GPU surface on Android got neither the app's Java VM nor its context**, which mln-rs 0.0.12
     needs to fetch over `HttpURLConnection`, else the map loads no style there
     ([#743](https://github.com/expo/exact/issues/743)). Fixed in `758b7bd2`, whose

@@ -65,16 +65,12 @@ exact_gpu::android_init!(|android| unsafe { maplibre_exact::android_init(android
 
 ## Running the example
 
-Clone Exact and mln-rs next to this repository and apply the patch in
-[`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches) to Exact, on
-the commits this was last built on, Exact `5a5cc8bb` and mln-rs `v0.0.12`. The patch captures each
-child of a canvas on the CPU on iOS, since the GPU capture gives markers blank or wrong pixels
-([expo/exact#425](https://github.com/expo/exact/issues/425)).
+Clone Exact and mln-rs next to this repository, on the commits this was last built on, Exact
+`170751e3` and mln-rs `v0.0.12`.
 
 ```sh
 git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-exact v0.0.12
-git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 5a5cc8bb
-git -C exact am "$PWD"/maplibre-rust-ui/exact/patches/exact/*.patch
+git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 170751e3
 bun exact/scripts/exact.mjs setup
 ```
 

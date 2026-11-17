@@ -51,8 +51,7 @@ Run each from its host's folder, such as `maplibre-rust-ui/slint`. Some hosts ne
   applied.
 - **Whisker** needs Whisker's CLI.
 - **Native Shell** needs its CLI for iOS, which builds the example for the simulator.
-- **Exact** needs Exact next to this repository, with the patches in
-  [`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches).
+- **Exact** needs Exact next to this repository.
 
 Each host's page has the details.
 
