@@ -72,8 +72,13 @@ jobs:
         with:
           # Trusted publishing needs npm 11.5.1 or later.
           node-version: 26
+          registry-url: https://registry.npmjs.org
       - name: Publish
         working-directory: exact/package
+        env:
+          # The first version only, before npm has the package to trust this workflow for.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
         run: |
           version=$(node -p 'require("./package.json").version')
           if [ -n "$(npm view "maplibre-exact@$version" version 2> /dev/null)" ]; then
