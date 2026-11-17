@@ -7,5 +7,8 @@ description = "MapLibre maps in Exact apps, drawn by mln-rs on Exact's GPU canva
 publish = false
 
 [dependencies]
-exact-gpu = { path = "../../exact/gpu" }
-maplibre-rust-ui = { path = "../core" }
+exact-gpu = "0.2"
+maplibre-rust-ui = "0.1.1"
+
+# Exact builds the package's crate in a workspace it generates.
+[workspace]

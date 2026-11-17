@@ -1,0 +1,27 @@
+From 229b8a6169c563a3d6fd628507fd9bbd69ce3eeb Mon Sep 17 00:00:00 2001
+From: Birk Skyum <birk.skyum@pm.me>
+Date: Tue, 17 Nov 2026 17:01:38 +0100
+Subject: [PATCH] A package's lock keeps its versions of the crates it shares
+ with exact-gpu
+
+---
+ scripts/app-shells.mjs | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/scripts/app-shells.mjs b/scripts/app-shells.mjs
+index ebe8ab0f9..52c8ef1af 100644
+--- a/scripts/app-shells.mjs
++++ b/scripts/app-shells.mjs
+@@ -831,7 +831,8 @@ export function packageGpuLock(sdk, own) {
+   const keep = o.blocks.filter((_, i) => !gpu.has(i) || shared.has(i)).map(b => b.replace(/^ "exact-gpu[^"\n]*",\n/gm, ''));
+   const sdkGpu = s.reached(s.packages.flatMap((p, i) => ['exact-gpu', 'wasm-bindgen', 'wasm-bindgen-futures', 'web-sys'].includes(p.name) ? [i] : []));
+   const lock = blocks => `version = 4\n\n${blocks.join('\n\n')}\n`;
+-  return lockSeed(lock(s.blocks.filter((_, i) => sdkGpu.has(i))), lock(keep));
++  const pinned = new Set(keep.map(seriesId));
++  return lockSeed(lock(s.blocks.filter((block, i) => sdkGpu.has(i) && !pinned.has(seriesId(block)))), lock(keep));
+ }
+ 
+ /** One generated cdylib per package, resolved without any host or other package's graph (LLP 1153.003 D5). */
+-- 
+2.56.0
+

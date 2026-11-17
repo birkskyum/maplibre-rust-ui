@@ -12,7 +12,7 @@ The core's [`Engine`](https://github.com/birkskyum/maplibre-rust-ui/blob/main/co
 the engine somewhere to draw and its input, and gives the app the model in the framework's own terms.
 In Exact the map is a canvas surface named `maplibre` with nine named arguments, commands come in
 through `postMessage`, events go out to the canvas's `message=` action, and the app reads the record
-as `exactSurface("maplibre")` ([`protocol.rs`](https://github.com/birkskyum/maplibre-rust-ui/blob/main/exact/src/protocol.rs)).
+as `exactSurface("maplibre")` ([`protocol.rs`](https://github.com/birkskyum/maplibre-rust-ui/blob/main/exact/package/rust/src/protocol.rs)).
 
 The engine draws with mln-rs, through its runtime, whose API mirrors maplibre-native-ffi's C API one
 to one. MapLibre Native can stand in for it through maplibre-native-ffi, which takes the same calls,
@@ -134,12 +134,13 @@ deltas maplibre-native-ffi's C API takes.
 
 ## What Exact would need to change
 
-Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `170751e3`.
+Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `42e805cd3`.
 Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://github.com/expo/exact/issues/426) (2, 3), [#427](https://github.com/expo/exact/issues/427) (1) and [#428](https://github.com/expo/exact/issues/428) (4) and [#743](https://github.com/expo/exact/issues/743) (11).
 
-1. **A package can't ship a GPU surface.** Surfaces are registered in the app's own `gpu/` crate, so
-   each app writes a three-line registry naming `maplibre_exact::mln::surface`. A package that could
-   declare a surface, as it declares a view, would make the map a dependency and nothing more.
+1. **A package couldn't ship a GPU surface.** Surfaces were registered in the app's own `gpu/` crate,
+   so each app wrote a three-line registry naming `maplibre_exact::mln::surface`. Fixed in
+   `42e805cd3`, where a package's `exact.json` declares its surfaces and Exact builds its crate into
+   a module of its own, so the map is a dependency and nothing more.
 2. **Rust 1.97.0 was pinned and enforced**, where mln-rs needs 1.98. Fixed in `1fe9821f`, which
    builds exact2 with 1.99.1.
 3. **Vendored crates pinned `ureq = "=3.4.0"`**, and `contract-lower` `icu_locale = "=2.3.0"`, where
@@ -169,8 +170,13 @@ Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://git
 11. **A GPU surface on Android got neither the app's Java VM nor its context**, which mln-rs 0.0.12
     needs to fetch over `HttpURLConnection`, else the map loads no style there
     ([#743](https://github.com/expo/exact/issues/743)). Fixed in `758b7bd2`, whose
-    `exact_gpu::android_init!` gives a GPU module both before its first surface. The app passes
-    them on with `maplibre_exact::android_init`.
+    `exact_gpu::android_init!` gives a GPU module both before its first surface. The module Exact
+    generates for a package has no such line, so the package's crate defines the entry itself,
+    which the module exports as it does any `#[no_mangle]` function of its crates.
+12. **A package's lock gave exact-gpu's crates the SDK's versions** of the crates it shares with
+    them, so the SDK's serde_json 1.0.151 replaced the 1.0.154 that mln-rs needs and the build
+    stopped, as in #426. The patch in `exact/patches` leaves the package's own versions of those
+    crates.
 
 ## What mln-rs would need
 

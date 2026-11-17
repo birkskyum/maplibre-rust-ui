@@ -43,41 +43,41 @@ canvas surface=maplibre(style="https://tiles.openfreemap.org/styles/liberty", lo
   camera options, `padding` included.
 
 The names follow MapLibre GL JS.
-[`protocol.rs`](https://github.com/birkskyum/maplibre-rust-ui/blob/main/exact/src/protocol.rs) binds
+[`protocol.rs`](https://github.com/birkskyum/maplibre-rust-ui/blob/main/exact/package/rust/src/protocol.rs) binds
 the canvas's arguments, [the map model](../model.md) is the rest of the contract, and
 [`examples/hello-map`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/examples/hello-map)
 uses all of it.
 
 ## Using it
 
-Exact registers surfaces in the app's own GPU module, so an app names this one in `gpu/src/lib.rs`.
-The `android_init!` line gives mln-rs the app's Java VM and context on Android, which it fetches
-the style and tiles through, and compiles to nothing on other platforms.
+The map is an Exact package, [`exact/package`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/package),
+whose `exact.json` declares the `maplibre` surface. An app adds it and places the canvas, with no
+Rust of its own:
 
-```rust
-pub static REGISTRY: exact_gpu::Registry = exact_gpu::Registry {
-    surfaces: &[("maplibre", maplibre_exact::protocol::ARITY, maplibre_exact::mln::surface)],
-    shaders: &[],
-};
-exact_gpu::module!(REGISTRY);
-exact_gpu::android_init!(|android| unsafe { maplibre_exact::android_init(android) });
+```sh
+bun exact.mjs add ../maplibre-rust-ui/exact/package
 ```
+
+Exact builds the package's crate into a GPU module of its own. The crate takes `maplibre-rust-ui`
+from crates.io, and on Android gives mln-rs the app's Java VM and context, which it fetches the
+style and tiles through.
 
 ## Running the example
 
-Clone Exact and mln-rs next to this repository, on the commits this was last built on, Exact
-`170751e3` and mln-rs `v0.0.12`.
+Clone Exact next to this repository, on the commit this was last built on, `42e805cd3`, and apply
+the one patch in [`exact/patches`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/patches),
+which lets the package's lock keep the serde_json 1.0.154 that mln-rs needs.
 
 ```sh
-git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-exact v0.0.12
-git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 170751e3
+git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 42e805cd3
+git -C exact am ../maplibre-rust-ui/exact/patches/*.patch
 bun exact/scripts/exact.mjs setup
 ```
 
 Then, from `maplibre-rust-ui/exact/examples/hello-map`:
 
 ```sh
-bun install --frozen-lockfile      # Exact's geolocation module, which the example uses
+bun install --frozen-lockfile      # the map's package and Exact's geolocation module
 bun exact.mjs mac --run
 bun exact.mjs ios --run            # an iOS Simulator; --device on a connected iPhone, with a development profile for its bundle id
 bun exact.mjs android --run        # on a connected Android phone

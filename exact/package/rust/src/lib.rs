@@ -6,31 +6,25 @@
 //! canvas's arguments to the map maplibre-rust-ui models, and [`mln`] is the
 //! surface, which draws the map on every host with a GPU canvas.
 //!
-//! Exact registers surfaces in the app's own GPU module, so the app names
-//! this one there:
-//!
-//! ```ignore
-//! pub static REGISTRY: exact_gpu::Registry = exact_gpu::Registry {
-//!     surfaces: &[("maplibre", maplibre_exact::protocol::ARITY, maplibre_exact::mln::surface)],
-//!     shaders: &[],
-//! };
-//! exact_gpu::module!(REGISTRY);
-//! exact_gpu::android_init!(|android| unsafe { maplibre_exact::android_init(android) });
-//! ```
+//! This crate is the Rust half of the `maplibre-exact` package, whose
+//! `exact.json` declares the surface. An app adds the package with
+//! `bun exact.mjs add <the package>`, and Exact builds the crate into a GPU
+//! module of its own.
 
 pub mod mln;
 pub mod protocol;
 
-/// Gives mln-rs the app's Java VM and application context on Android, which it fetches HTTP and
-/// reads the app's assets through. The app calls it from Exact's `android_init!` beside
-/// `module!`, before any map.
-///
+// Gives mln-rs the app's Java VM and application context on Android, which it fetches HTTP and
+// reads the app's assets through. Exact generates the package's module with `module!` alone, so
+// the entry is defined here, and the module exports it.
+exact_gpu::android_init!(|android| unsafe { android_init(android) });
+
 /// # Safety
 ///
 /// `android` is what Exact gives `android_init!`: the calling thread's `JNIEnv*` and a live
 /// reference to the application `Context`.
 #[cfg(target_os = "android")]
-pub unsafe fn android_init(android: exact_gpu::android::Android) -> Result<(), String> {
+unsafe fn android_init(android: exact_gpu::android::Android) -> Result<(), String> {
     let env = std::ptr::NonNull::new(android.env).ok_or("no JNIEnv")?;
     let context = std::ptr::NonNull::new(android.context).ok_or("no application Context")?;
     unsafe { maplibre_rust_ui::component::android_init(env, context) }

@@ -6,6 +6,7 @@
     "start": "bun exact.mjs serve dist"
   },
   "dependencies": {
-    "@exact/geolocation": "file:../../../../exact/packages/geolocation"
+    "@exact/geolocation": "file:../../../../exact/packages/geolocation",
+    "maplibre-exact": "file:../../package"
   }
 }

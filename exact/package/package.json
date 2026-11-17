@@ -1,0 +1,14 @@
+{
+  "name": "maplibre-exact",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MapLibre maps in Exact apps, drawn by mln-rs on Exact's GPU canvas",
+  "license": "MIT",
+  "files": [
+    "exact.json",
+    "rust"
+  ],
+  "exports": {
+    ".": "./exact.json"
+  }
+}
