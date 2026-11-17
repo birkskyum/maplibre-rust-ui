@@ -135,7 +135,7 @@ deltas maplibre-native-ffi's C API takes.
 ## What Exact would need to change
 
 Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `42e805cd3`.
-Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://github.com/expo/exact/issues/426) (2, 3), [#427](https://github.com/expo/exact/issues/427) (1) and [#428](https://github.com/expo/exact/issues/428) (4) and [#743](https://github.com/expo/exact/issues/743) (11).
+Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://github.com/expo/exact/issues/426) (2, 3), [#427](https://github.com/expo/exact/issues/427) (1) and [#428](https://github.com/expo/exact/issues/428) (4), [#743](https://github.com/expo/exact/issues/743) (11) and [#809](https://github.com/expo/exact/issues/809) (12).
 
 1. **A package couldn't ship a GPU surface.** Surfaces were registered in the app's own `gpu/` crate,
    so each app wrote a three-line registry naming `maplibre_exact::mln::surface`. Fixed in
@@ -175,8 +175,10 @@ Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://git
     which the module exports as it does any `#[no_mangle]` function of its crates.
 12. **A package's lock gave exact-gpu's crates the SDK's versions** of the crates it shares with
     them, so the SDK's serde_json 1.0.151 replaced the 1.0.154 that mln-rs needs and the build
-    stopped, as in #426. The patch in `exact/patches` leaves the package's own versions of those
-    crates.
+    stopped, as in #426 ([#809](https://github.com/expo/exact/issues/809)). The patch in
+    `exact/patches` leaves the package's own versions of those crates, which works for this
+    package's lock, where the crates only exact-gpu uses agree with the shared ones. A freshly
+    resolved lock can still clash there (crypto-common 0.1.7 pins generic-array 0.14.7).
 
 ## What mln-rs would need
 
