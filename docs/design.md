@@ -116,7 +116,7 @@ deltas maplibre-native-ffi's C API takes.
 
 ## Against MapLibre Compose
 
-| Compose guide | Here |
+| MapLibre Compose's guide | maplibre-rust-ui |
 |---|---|
 | Composition, a base style plus declared sources and layers, diffed | Done, as `content` |
 | Layers, with GeoJSON and tiled sources, expressions and `beforeId` | Done, and `beforeType` draws under the base style's first layer of a type, as `Anchor.Below` does |
