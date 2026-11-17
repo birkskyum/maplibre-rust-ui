@@ -70,14 +70,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          # Trusted publishing needs npm 11.5.1 or later.
+          # Node 26's npm, 11.20, has trusted publishing and `npm stage`.
           node-version: 26
           registry-url: https://registry.npmjs.org
       - name: Stage
         working-directory: exact/package
-        env:
-          # The first version only, before npm has the package to trust this workflow for.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           version=$(node -p 'require("./package.json").version')
           if [ -n "$(npm view "maplibre-exact@$version" version 2> /dev/null)" ]; then
