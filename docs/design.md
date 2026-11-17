@@ -146,7 +146,7 @@ what is still to learn from it.
 | Overlay Compose UI | Material 3's scale bar, compass, zoom buttons and attribution, and Compose UI placed at a place on the map or pointing to one off the screen | Markers as GL JS has them, holding the host's own UI at places on the map in every host but Native Shell, and turning and tilting with it in Slint, Whisker and Exact, a compass as a marker, and the attribution as text in the record. No scale bar or zoom buttons |
 | Show the user's location | A location and heading provider, a location layer, and an effect that follows the user | The host's own location, such as Exact's `@exact/geolocation` in Hello Map, with the dot a marker. No location layer of its own |
 | Capture a map image | A snapshotter | Not yet |
-| Download maps for offline use | Offline downloads on every platform but the web | Not yet. What maps load stays in a cache database on disk, so a map shows what it showed before without a network |
+| Download maps for offline use | Offline downloads on every platform but the web | Offline regions by name, downloaded, paused, refreshed and deleted with commands, and listed with their progress in the record. What maps load also stays in a cache database on disk |
 | Rewrite or serve map requests | Requests the app rewrites or answers itself | Rules that rewrite a request's URL, add query parameters and send headers, by URL prefix and resource type. The app doesn't answer requests itself yet |
 | Present outside Compose UI | The same map state shown in CarPlay, Android Auto, UIKit, SwiftUI or React | What the hosts do, one model shown in Slint, egui, Bevy, GPUI, Native Shell, Whisker and Exact |
 

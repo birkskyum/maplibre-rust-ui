@@ -20,6 +20,7 @@ pub mod component;
 mod content;
 mod engine;
 pub mod model;
+mod offline;
 pub mod placement;
 mod requests;
 pub mod texture;

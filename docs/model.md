@@ -214,6 +214,10 @@ A command is a JSON object whose `command` names it, with GL JS's camera options
 | `flyTo` | Moves the camera in an animation that zooms out and in on the way, as GL JS's does |
 | `fitBounds` | Shows the box between two corners, `{"bounds": [[west, south], [east, north]], "padding": 40}`, animated unless `duration` is 0 |
 | `setStyle` | Switches the base style, `{"style": url}`, keeping the content |
+| `downloadRegion` | Downloads an offline region, or resumes it, below |
+| `pauseRegion` | Pauses a region's download, `{"name": "zurich"}` |
+| `refreshRegion` | Has maps check a region's resources with their servers before they use them again |
+| `deleteRegion` | Deletes a region, with what no other region needs |
 
 `jumpTo`, `easeTo` and `flyTo` take `center`, `zoom`, `bearing` and `pitch`, and set only those given.
 `jumpTo` and `easeTo` also take `around`, a `[longitude, latitude]` that stays where it is on the
@@ -235,6 +239,7 @@ map's record, which has the details.
 | `click` | A press and release that didn't move the map, which the record's `click` describes |
 | `contextmenu` | A secondary click, or a touch held still for half a second, which the record's `contextmenu` describes. Its release is no click |
 | `error` | Something failed, which the record's `failure` says |
+| `offline` | An offline region changed, as it downloaded more, finished, paused or went, which the record's `regions` lists. While a region downloads, a few times a second at most |
 
 ## The record
 
@@ -256,7 +261,12 @@ the record changes when something happens and not on every frame of a gesture.
   },
   "contextmenu": null,
   "failure": null,
-  "attribution": "OpenFreeMap © OpenMapTiles Data from OpenStreetMap"
+  "attribution": "OpenFreeMap © OpenMapTiles Data from OpenStreetMap",
+  "regions": [
+    {"name": "zurich", "bounds": [[8.45, 47.32], [8.62, 47.43]], "minZoom": 10, "maxZoom": 16,
+     "state": "downloading", "completedResources": 412, "requiredResources": 1530,
+     "completedBytes": 9184214, "error": null}
+  ]
 }
 ```
 
@@ -269,6 +279,7 @@ the record changes when something happens and not on every frame of a gesture.
 | `contextmenu` | The last secondary click or long press, `null` before the first |
 | `failure` | The last error, `null` while there has been none |
 | `attribution` | Who the style's data comes from, as text to show on or beside the map, the sources' attributions joined by vertical bars |
+| `regions` | The offline regions in the app's database, below |
 
 A click has its `lngLat` and `point` as GL JS's `MapMouseEvent` has them, the point in points from the
 map's top-left corner. Its `features` are those of the content's layers at the click, widened by
@@ -278,3 +289,29 @@ GL JS's `getClusterExpansionZoom` answers, so the app can zoom in to split it wi
 
 The last error is called `failure` rather than `error`, because Exact keeps a canvas's own `error`
 beside its record.
+
+## Offline regions
+
+An offline region is the map's style, its tiles, fonts and images for an area and a zoom range, which
+maps then show without a network, as MapLibre Compose's offline packs are. The regions are in the
+app's cache database, which every map of the app shares, so a map lists those that an earlier run or
+another map downloaded.
+
+```json
+{"command": "downloadRegion", "name": "zurich", "bounds": [[8.45, 47.32], [8.62, 47.43]], "minZoom": 10, "maxZoom": 16}
+```
+
+`downloadRegion` downloads the map's style, which has to be a URL, at the map's pixel ratio. A region
+of the name it gives resumes instead. Each region in the record's `regions` has these fields.
+
+| Field | What it is |
+|---|---|
+| `name` | The name the app gave it |
+| `bounds`, `minZoom`, `maxZoom` | The area and zoom range it covers |
+| `state` | `downloading`, `paused` or `complete` |
+| `completedResources`, `requiredResources` | The resources downloaded and those it needs. The second is a lower bound until the region's style and sources have loaded |
+| `completedBytes` | The bytes downloaded |
+| `error` | The last resource that failed to download, `null` while none has |
+
+A download goes on while a map of the app runs, and a paused or unfinished one resumes with another
+`downloadRegion` of its name. The browser has no offline regions, since it has no cache database.

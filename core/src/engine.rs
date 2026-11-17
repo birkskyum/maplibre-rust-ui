@@ -38,6 +38,7 @@ use crate::content::{self, Base};
 use crate::model::{
     self, Camera, CameraChange, Click, Command, Content, Event, Inputs, LngLat, Options, Padding, Point, Record,
 };
+use crate::offline::{self, Regions};
 use crate::requests;
 
 /// How long a touch stays still to be a long press, in milliseconds: iOS's
@@ -138,6 +139,10 @@ pub struct Engine {
     /// The bounds asked for a camera that came to rest, whose `moveend`
     /// waits for them.
     bounding: Option<(Camera, Completion<LatLngBounds>)>,
+    /// The app's offline regions, and what the runtime reported of their
+    /// downloads since the last frame.
+    regions: Regions,
+    offline_updates: Arc<Mutex<Vec<offline::Update>>>,
     size: Size,
     scale: f32,
     /// The instant of a host millisecond, which the map's clock counts from.
@@ -211,16 +216,26 @@ impl Engine {
             }
         };
         let events = Arc::new(Mutex::new(Vec::new()));
-        let sink = events.clone();
+        let offline_updates = Arc::new(Mutex::new(Vec::new()));
+        let (sink, offline_sink) = (events.clone(), offline_updates.clone());
         // The handler takes effect before the map is made, on the runtime's
         // thread, which runs commands in order.
         let _handler = runtime
             .set_event_handler(move |batch| {
                 let mut sink = sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-                sink.extend(batch.iter().filter_map(|event| match &event.kind {
-                    RuntimeEventKind::Map(event) => Some(event.clone()),
-                    _ => None,
-                }));
+                let mut offline = offline_sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                for event in batch {
+                    match &event.kind {
+                        RuntimeEventKind::Map(event) => sink.push(event.clone()),
+                        RuntimeEventKind::OfflineRegionStatusChanged { region_id, status } => {
+                            offline.push(offline::Update::Status(*region_id, *status));
+                        }
+                        RuntimeEventKind::OfflineRegionResponseError { region_id, error } => {
+                            let message = format!("{:?}: {}", error.reason, error.message);
+                            offline.push(offline::Update::Failed(*region_id, message));
+                        }
+                    }
+                }
             })
             .map_err(fail)?;
         let Viewport { size, scale } = viewport;
@@ -246,6 +261,7 @@ impl Engine {
         let (session, _attached) = map.attach(target, attach).map_err(fail)?;
         let driver = if hosts { Some(session.take_driver_work().map_err(fail)?) } else { None };
         let snapshot = map.snapshot().map_err(fail)?;
+        let regions = Regions::new(&runtime);
         let mut engine = Engine {
             session,
             driver,
@@ -284,6 +300,8 @@ impl Engine {
             bounds: None,
             bounds_of: None,
             bounding: None,
+            regions,
+            offline_updates,
             size,
             scale,
             epoch: (Instant::now(), now_ms),
@@ -490,6 +508,35 @@ impl Engine {
                 self.set_style(&inputs);
                 self.applied.style = inputs.style;
             }
+            Command::DownloadRegion { name, bounds, min_zoom, max_zoom } => {
+                let style = (!self.applied.style_is_document()).then(|| self.applied.style.clone());
+                let downloaded = self.regions.download(
+                    &self.runtime,
+                    style.as_deref(),
+                    self.scale,
+                    name,
+                    bounds,
+                    [min_zoom, max_zoom],
+                );
+                if let Err(e) = downloaded {
+                    self.error = Some(format!("maplibre: downloadRegion: {e}"));
+                }
+            }
+            Command::PauseRegion { name } => {
+                if let Err(e) = self.regions.pause(&self.runtime, &name) {
+                    self.error = Some(format!("maplibre: pauseRegion: {e}"));
+                }
+            }
+            Command::RefreshRegion { name } => {
+                if let Err(e) = self.regions.refresh(&self.runtime, &name) {
+                    self.error = Some(format!("maplibre: refreshRegion: {e}"));
+                }
+            }
+            Command::DeleteRegion { name } => {
+                if let Err(e) = self.regions.delete(&self.runtime, &name) {
+                    self.error = Some(format!("maplibre: deleteRegion: {e}"));
+                }
+            }
         }
     }
 
@@ -589,6 +636,15 @@ impl Engine {
         }
         self.map_events(events);
         self.poll(events);
+        let updates =
+            std::mem::take(&mut *self.offline_updates.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
+        for update in updates {
+            self.regions.update(update);
+        }
+        for failure in self.regions.poll(&self.runtime, now_ms, events) {
+            self.error = Some(format!("maplibre: {failure}"));
+            events.push(Event::Error);
+        }
         self.apply_content(decoded);
         self.render();
         self.refresh();
@@ -618,6 +674,7 @@ impl Engine {
             || !self.asked.is_empty()
             || self.sources.is_some()
             || self.bounding.is_some()
+            || self.regions.busy()
             || !matches!(self.style, StyleState::Loaded(_));
         waiting || !resting
     }
@@ -932,6 +989,7 @@ impl Engine {
             contextmenu: self.contextmenu.clone(),
             failure: self.error.clone(),
             attribution: self.attribution.clone(),
+            regions: self.regions.record(),
         }
     }
 }
@@ -1023,6 +1081,7 @@ mod tests {
     use mln_runtime::Driver;
 
     use super::*;
+    use crate::model::RegionState;
 
     const ZURICH: [f64; 2] = [8.54, 47.37];
 
@@ -1160,10 +1219,84 @@ mod tests {
         let mut now = 0.0;
         let mut first = engine_of(&style, Options::default());
         until(&mut first, &mut now, |record| record.loaded);
+        // The database's thread writes what the map loaded into the cache, in
+        // order with the runtime's offline commands, so this one waits for it.
+        let _written = first.runtime.offline().regions().map(Completion::wait);
         drop(first);
         let _ = served.join();
         let mut second = engine_of(&style, Options::default());
         let record = until(&mut second, &mut now, |record| record.loaded || record.failure.is_some());
         assert!(record.loaded, "{:?}", record.failure);
+    }
+
+    /// Serves a style of one vector source, whose tiles are empty, at
+    /// `/style.json` on a port of its own, until the test ends.
+    fn tile_server() -> u16 {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap_or_else(|e| panic!("{e}"));
+        let port = listener.local_addr().map(|address| address.port()).unwrap_or_default();
+        std::thread::spawn(move || {
+            for mut stream in listener.incoming().flatten() {
+                let Ok(read) = stream.try_clone() else { continue };
+                let head: Vec<String> =
+                    BufReader::new(read).lines().map_while(Result::ok).take_while(|line| !line.is_empty()).collect();
+                let path = head.first().and_then(|line| line.split(' ').nth(1)).unwrap_or_default().to_owned();
+                let body = if path == "/style.json" {
+                    format!(
+                        r#"{{"version":8,"sources":{{"land":{{"type":"vector","maxzoom":14,
+                            "tiles":["http://127.0.0.1:{port}/tiles/{{z}}/{{x}}/{{y}}.pbf"]}}}},
+                            "layers":[{{"id":"land","type":"fill","source":"land","source-layer":"land"}}]}}"#
+                    )
+                } else {
+                    String::new()
+                };
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+            }
+        });
+        port
+    }
+
+    #[test]
+    fn a_region_downloads_into_the_apps_database_where_another_map_finds_it() {
+        let port = tile_server();
+        let style = format!("http://127.0.0.1:{port}/style.json");
+        let name = format!("test {port}");
+        let region = |record: &Record| record.regions.iter().find(|region| region.name == name).cloned();
+        let mut now = 0.0;
+        let mut first = engine_of(&style, Options::default());
+        let download = format!(
+            r#"{{"command":"downloadRegion","name":"{name}","bounds":[[0.5,0.5],[1,1]],"minZoom":0,"maxZoom":1}}"#
+        );
+        first.command(Command::parse(&download).unwrap_or_else(|e| panic!("{e}")), now);
+        let (mut posted, deadline) = (Vec::new(), Instant::now() + Duration::from_secs(20));
+        let downloaded = loop {
+            now += 16.0;
+            first.frame(now, &HashMap::new(), &mut posted);
+            let record = first.record();
+            if let Some(region) = region(&record).filter(|region| region.state == RegionState::Complete) {
+                break region;
+            }
+            assert!(Instant::now() < deadline, "the region never downloaded: {record:?}");
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        assert!(posted.contains(&Event::Offline));
+        // The style and a tile at each of the two zooms.
+        assert_eq!((downloaded.completed_resources, downloaded.required_resources), (3, 3));
+        assert_eq!((downloaded.min_zoom, downloaded.max_zoom), (0.0, 1.0));
+        drop(first);
+
+        let mut second = engine_of(&style, Options::default());
+        let found =
+            until(&mut second, &mut now, |record| region(record).is_some_and(|r| r.state == RegionState::Complete));
+        assert_eq!(region(&found).map(|region| region.bounds), Some([[0.5, 0.5], [1.0, 1.0]]));
+        let delete = format!(r#"{{"command":"deleteRegion","name":"{name}"}}"#);
+        second.command(Command::parse(&delete).unwrap_or_else(|e| panic!("{e}")), now);
+        until(&mut second, &mut now, |record| region(record).is_none());
     }
 }

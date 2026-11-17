@@ -27,14 +27,16 @@ canvas surface=maplibre(style="https://tiles.openfreemap.org/styles/liberty", lo
   headers to them, such as a tile server's token.
 - The map takes the mouse with its modifier keys, a trackpad's scroll and pinch, and touches, with GL
   JS's gestures.
-- The map posts the events `events` lists (`load`, `moveend`, `click`, `contextmenu`, `error`) to
-  the canvas's `message=` action, as GL JS's `map.on` subscribes to them. `contextmenu` is a
-  secondary click or a long press.
+- The map posts the events `events` lists (`load`, `moveend`, `click`, `contextmenu`, `error`,
+  `offline`) to the canvas's `message=` action, as GL JS's `map.on` subscribes to them.
+  `contextmenu` is a secondary click or a long press.
 - Its record, `exactSurface("maplibre")`, holds the camera at rest and what the map shows from it,
-  whether everything in view has loaded, the last click and context menu with the content's features under them (a cluster's with
-  the zoom it splits at), the last failure, and the style's attribution as text for the app to show
-  on the map. The app reads it as a shape of its own.
-- Commands go in as JSON (`jumpTo`, `easeTo`, `flyTo`, `fitBounds`, `setStyle`), such as
+  whether everything in view has loaded, the last click and context menu with the content's features
+  under them (a cluster's with the zoom it splits at), the last failure, the style's attribution as
+  text for the app to show on the map, and the offline regions with their progress. The app reads it
+  as a shape of its own.
+- Commands go in as JSON (`jumpTo`, `easeTo`, `flyTo`, `fitBounds`, `setStyle`, and
+  `downloadRegion` and the other commands of the offline regions), such as
   ``postMessage(`{"command":"flyTo","center":[8.54,47.37],"zoom":14}`, "maplibre")``, with GL JS's
   camera options, `padding` included.
 

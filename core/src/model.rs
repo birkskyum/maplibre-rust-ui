@@ -523,7 +523,7 @@ pub struct Animation {
 
 /// A command the app posts, as `{"command": "flyTo", "center": [lng, lat], …}`.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
-#[serde(tag = "command", rename_all = "camelCase")]
+#[serde(tag = "command", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum Command {
     JumpTo(CameraChange),
     EaseTo(Animation),
@@ -537,6 +537,28 @@ pub enum Command {
     },
     SetStyle {
         style: String,
+    },
+    /// Downloads the map's style for `bounds`, `[[west, south], [east,
+    /// north]]`, from `minZoom` to `maxZoom`, into the app's offline
+    /// database as the region `name`, or resumes the region of that name.
+    DownloadRegion {
+        name: String,
+        bounds: [[f64; 2]; 2],
+        min_zoom: f64,
+        max_zoom: f64,
+    },
+    /// Pauses the download of the region `name`.
+    PauseRegion {
+        name: String,
+    },
+    /// Has maps check the region's resources with their servers before they
+    /// use them, as MapLibre Compose's `invalidate` does. It keeps them.
+    RefreshRegion {
+        name: String,
+    },
+    /// Deletes the region `name`, with what no other region needs.
+    DeleteRegion {
+        name: String,
     },
 }
 
@@ -567,10 +589,14 @@ pub enum Event {
     Contextmenu,
     /// Something failed, which the record's `failure` says.
     Error,
+    /// The offline regions changed, as one downloaded more or finished,
+    /// which the record's `regions` lists.
+    Offline,
 }
 
 impl Event {
-    const ALL: [Event; 5] = [Event::Load, Event::Moveend, Event::Click, Event::Contextmenu, Event::Error];
+    pub(crate) const ALL: [Event; 6] =
+        [Event::Load, Event::Moveend, Event::Click, Event::Contextmenu, Event::Error, Event::Offline];
 
     /// The events named in `text`, separated by spaces or commas.
     ///
@@ -582,7 +608,7 @@ impl Event {
             .filter(|word| !word.is_empty())
             .map(|word| {
                 Event::ALL.into_iter().find(|event| event.name() == word).ok_or_else(|| {
-                    format!("maplibre: events: {word} is no event; the map posts load, moveend, click, contextmenu and error")
+                    format!("maplibre: events: {word} is no event; the map posts load, moveend, click, contextmenu, error and offline")
                 })
             })
             .collect()
@@ -597,6 +623,7 @@ impl Event {
             Event::Click => "click",
             Event::Contextmenu => "contextmenu",
             Event::Error => "error",
+            Event::Offline => "offline",
         }
     }
 }
@@ -622,6 +649,38 @@ pub struct Record {
     /// Who the style's data comes from, as text to show on or beside the
     /// map, the sources' attributions joined with ` | `.
     pub attribution: String,
+    /// The offline regions in the app's database.
+    pub regions: Vec<Region>,
+}
+
+/// An offline region: the style and tiles of an area, kept for maps to show
+/// without a network.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Region {
+    pub name: String,
+    /// `[[west, south], [east, north]]`.
+    pub bounds: [[f64; 2]; 2],
+    pub min_zoom: f64,
+    pub max_zoom: f64,
+    pub state: RegionState,
+    /// The resources downloaded, and those the region needs, which is a lower
+    /// bound until the style and its sources have loaded.
+    pub completed_resources: u64,
+    pub required_resources: u64,
+    /// The bytes downloaded.
+    pub completed_bytes: u64,
+    /// The last resource that failed to download, `null` while none has.
+    pub error: Option<String>,
+}
+
+/// Where a region's download is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RegionState {
+    Downloading,
+    Paused,
+    Complete,
 }
 
 impl Record {
@@ -781,6 +840,29 @@ mod tests {
     }
 
     #[test]
+    fn a_region_downloads_by_name_with_a_zoom_range() {
+        let command = Command::parse(
+            r#"{"command":"downloadRegion","name":"zurich","bounds":[[8.4,47.3],[8.6,47.4]],"minZoom":10,"maxZoom":16}"#,
+        );
+        assert_eq!(
+            command,
+            Ok(Command::DownloadRegion {
+                name: "zurich".into(),
+                bounds: [[8.4, 47.3], [8.6, 47.4]],
+                min_zoom: 10.0,
+                max_zoom: 16.0,
+            })
+        );
+        assert_eq!(
+            Command::parse(r#"{"command":"deleteRegion","name":"zurich"}"#),
+            Ok(Command::DeleteRegion { name: "zurich".into() })
+        );
+        assert!(
+            Command::parse(r#"{"command":"downloadRegion","name":"zurich","bounds":[[8.4,47.3],[8.6,47.4]]}"#).is_err()
+        );
+    }
+
+    #[test]
     fn a_fit_bounds_takes_two_corners() {
         assert_eq!(
             Command::parse(r#"{"command":"fitBounds","bounds":[[8.5,47.3],[8.6,47.4]],"padding":20}"#),
@@ -901,10 +983,11 @@ mod tests {
             contextmenu: None,
             failure: None,
             attribution: String::new(),
+            regions: Vec::new(),
         };
         assert_eq!(
             record.to_json(),
-            r#"{"center":[1.0,2.0],"zoom":3.0,"bearing":0.0,"pitch":0.0,"bounds":null,"loaded":true,"click":null,"contextmenu":null,"failure":null,"attribution":""}"#
+            r#"{"center":[1.0,2.0],"zoom":3.0,"bearing":0.0,"pitch":0.0,"bounds":null,"loaded":true,"click":null,"contextmenu":null,"failure":null,"attribution":"","regions":[]}"#
         );
     }
 

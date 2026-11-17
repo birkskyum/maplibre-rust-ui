@@ -24,7 +24,7 @@ use crate::texture::MapTexture;
 use crate::{Engine, Phase, Pointer, Viewport};
 
 /// The events a map posts when its props name none.
-const ALL_EVENTS: [Event; 5] = [Event::Load, Event::Moveend, Event::Click, Event::Contextmenu, Event::Error];
+const ALL_EVENTS: [Event; 6] = Event::ALL;
 
 /// Where the camera is before the props set one: the whole world.
 const WORLD: Camera = Camera { center: [0.0, 0.0], zoom: 0.0, bearing: 0.0, pitch: 0.0 };
@@ -412,6 +412,7 @@ impl Component {
             contextmenu: None,
             failure: None,
             attribution: String::new(),
+            regions: Vec::new(),
         });
         let mut posts = Vec::new();
         let mut post = |event: Event, record: &Record| {
@@ -744,7 +745,7 @@ mod tests {
                 (
                     "error",
                     Some(
-                        "maplibre: events: nothing is no event; the map posts load, moveend, click, contextmenu and error"
+                        "maplibre: events: nothing is no event; the map posts load, moveend, click, contextmenu, error and offline"
                     )
                 )
             ]
