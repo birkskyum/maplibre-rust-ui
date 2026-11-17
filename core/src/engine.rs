@@ -1153,31 +1153,84 @@ mod tests {
         assert!((record.camera.center[0] - expected).abs() < 1e-6, "{:?}, not {expected}", record.camera.center);
     }
 
+    /// An HTTP server on a port of its own, which answers each request with
+    /// the body `answer` gives for its head, the request line and headers,
+    /// on a thread for each connection, until it stops.
+    struct Server {
+        port: u16,
+        heads: std::sync::mpsc::Receiver<Vec<String>>,
+        stop: Arc<std::sync::atomic::AtomicBool>,
+        accepting: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl Server {
+        fn new(answer: impl Fn(&[String], u16) -> String + Send + Sync + 'static) -> Server {
+            use std::io::{BufRead, BufReader, Write};
+            use std::net::TcpListener;
+            use std::sync::atomic::{AtomicBool, Ordering};
+
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap_or_else(|e| panic!("{e}"));
+            let port = listener.local_addr().map(|address| address.port()).unwrap_or_default();
+            listener.set_nonblocking(true).unwrap_or_else(|e| panic!("{e}"));
+            let (heard, heads) = std::sync::mpsc::channel();
+            let stop = Arc::new(AtomicBool::new(false));
+            let (stopped, answer) = (stop.clone(), Arc::new(answer));
+            let accepting = std::thread::spawn(move || {
+                while !stopped.load(Ordering::SeqCst) {
+                    let Ok((mut stream, _)) = listener.accept() else {
+                        std::thread::sleep(Duration::from_millis(2));
+                        continue;
+                    };
+                    let (answer, heard) = (answer.clone(), heard.clone());
+                    // A client may open a connection before it has a request
+                    // for it, which mustn't hold up the others.
+                    std::thread::spawn(move || {
+                        let _ = stream.set_nonblocking(false);
+                        let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+                        let Ok(read) = stream.try_clone() else { return };
+                        let head: Vec<String> = BufReader::new(read)
+                            .lines()
+                            .map_while(Result::ok)
+                            .take_while(|line| !line.is_empty())
+                            .collect();
+                        if head.is_empty() {
+                            return;
+                        }
+                        let body = answer(&head, port);
+                        let _ = write!(
+                            stream,
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        );
+                        let _ = heard.send(head);
+                    });
+                }
+            });
+            Server { port, heads, stop, accepting: Some(accepting) }
+        }
+
+        /// Stops listening, so that a request to the port fails.
+        fn stop(&mut self) {
+            self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+            if let Some(accepting) = self.accepting.take() {
+                let _ = accepting.join();
+            }
+        }
+    }
+
+    impl Drop for Server {
+        fn drop(&mut self) {
+            self.stop();
+        }
+    }
+
     #[test]
     fn requests_go_where_the_rules_say_with_their_query_and_headers() {
-        use std::io::{BufRead, BufReader, Write};
-        use std::net::TcpListener;
-
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap_or_else(|e| panic!("{e}"));
-        let port = listener.local_addr().map(|address| address.port()).unwrap_or_default();
-        let (heard, requests) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            for mut stream in listener.incoming().flatten() {
-                let Ok(read) = stream.try_clone() else { continue };
-                let head: Vec<String> =
-                    BufReader::new(read).lines().map_while(Result::ok).take_while(|line| !line.is_empty()).collect();
-                let body = r#"{"version":8,"sources":{},"layers":[]}"#;
-                let _ = write!(
-                    stream,
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                    body.len()
-                );
-                let _ = heard.send(head);
-            }
-        });
+        let server = Server::new(|_, _| r#"{"version":8,"sources":{},"layers":[]}"#.to_owned());
         let options = Options::parse(&format!(
-            r#"{{"transformRequest":[{{"prefix":"https://tiles.invalid/","url":"http://127.0.0.1:{port}/",
-                "query":{{"key":"k"}},"headers":{{"Authorization":"Bearer t"}}}}]}}"#
+            r#"{{"transformRequest":[{{"prefix":"https://tiles.invalid/","url":"http://127.0.0.1:{}/",
+                "query":{{"key":"k"}},"headers":{{"Authorization":"Bearer t"}}}}]}}"#,
+            server.port
         ))
         .unwrap_or_else(|e| panic!("{e}"));
         let mut engine = engine_of("https://tiles.invalid/style.json", options);
@@ -1185,7 +1238,7 @@ mod tests {
         let head = loop {
             now += 16.0;
             engine.frame(now, &HashMap::new(), &mut Vec::new());
-            if let Ok(head) = requests.try_recv() {
+            if let Ok(head) = server.heads.try_recv() {
                 break head;
             }
             assert!(Instant::now() < deadline, "no request came: {:?}", engine.record().failure);
@@ -1197,25 +1250,9 @@ mod tests {
 
     #[test]
     fn a_map_loads_from_the_cache_on_disk_what_an_earlier_map_loaded() {
-        use std::io::{BufRead, BufReader, Write};
-        use std::net::TcpListener;
-
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap_or_else(|e| panic!("{e}"));
-        let port = listener.local_addr().map(|address| address.port()).unwrap_or_default();
-        // One answer, then nothing listens on the port.
-        let served = std::thread::spawn(move || {
-            let Some(Ok(mut stream)) = listener.incoming().next() else { return };
-            let Ok(read) = stream.try_clone() else { return };
-            let _head: Vec<String> =
-                BufReader::new(read).lines().map_while(Result::ok).take_while(|line| !line.is_empty()).collect();
-            let body = r#"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background"}]}"#;
-            let _ = write!(
-                stream,
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
-        });
-        let style = format!("http://127.0.0.1:{port}/style.json");
+        let mut server =
+            Server::new(|_, _| r#"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background"}]}"#.to_owned());
+        let style = format!("http://127.0.0.1:{}/style.json", server.port);
         let mut now = 0.0;
         let mut first = engine_of(&style, Options::default());
         until(&mut first, &mut now, |record| record.loaded);
@@ -1223,50 +1260,33 @@ mod tests {
         // order with the runtime's offline commands, so this one waits for it.
         let _written = first.runtime.offline().regions().map(Completion::wait);
         drop(first);
-        let _ = served.join();
+        server.stop();
         let mut second = engine_of(&style, Options::default());
         let record = until(&mut second, &mut now, |record| record.loaded || record.failure.is_some());
         assert!(record.loaded, "{:?}", record.failure);
     }
 
     /// Serves a style of one vector source, whose tiles are empty, at
-    /// `/style.json` on a port of its own, until the test ends.
-    fn tile_server() -> u16 {
-        use std::io::{BufRead, BufReader, Write};
-        use std::net::TcpListener;
-
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap_or_else(|e| panic!("{e}"));
-        let port = listener.local_addr().map(|address| address.port()).unwrap_or_default();
-        std::thread::spawn(move || {
-            for mut stream in listener.incoming().flatten() {
-                let Ok(read) = stream.try_clone() else { continue };
-                let head: Vec<String> =
-                    BufReader::new(read).lines().map_while(Result::ok).take_while(|line| !line.is_empty()).collect();
-                let path = head.first().and_then(|line| line.split(' ').nth(1)).unwrap_or_default().to_owned();
-                let body = if path == "/style.json" {
-                    format!(
-                        r#"{{"version":8,"sources":{{"land":{{"type":"vector","maxzoom":14,
-                            "tiles":["http://127.0.0.1:{port}/tiles/{{z}}/{{x}}/{{y}}.pbf"]}}}},
-                            "layers":[{{"id":"land","type":"fill","source":"land","source-layer":"land"}}]}}"#
-                    )
-                } else {
-                    String::new()
-                };
-                let _ = write!(
-                    stream,
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                    body.len()
-                );
+    /// `/style.json`.
+    fn tile_server() -> Server {
+        Server::new(|head, port| {
+            if head.first().and_then(|line| line.split(' ').nth(1)) == Some("/style.json") {
+                format!(
+                    r#"{{"version":8,"sources":{{"land":{{"type":"vector","maxzoom":14,
+                        "tiles":["http://127.0.0.1:{port}/tiles/{{z}}/{{x}}/{{y}}.pbf"]}}}},
+                        "layers":[{{"id":"land","type":"fill","source":"land","source-layer":"land"}}]}}"#
+                )
+            } else {
+                String::new()
             }
-        });
-        port
+        })
     }
 
     #[test]
     fn a_region_downloads_into_the_apps_database_where_another_map_finds_it() {
-        let port = tile_server();
-        let style = format!("http://127.0.0.1:{port}/style.json");
-        let name = format!("test {port}");
+        let server = tile_server();
+        let style = format!("http://127.0.0.1:{}/style.json", server.port);
+        let name = format!("test {}", server.port);
         let region = |record: &Record| record.regions.iter().find(|region| region.name == name).cloned();
         let mut now = 0.0;
         let mut first = engine_of(&style, Options::default());
