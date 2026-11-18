@@ -134,8 +134,9 @@ from. It brings MapLibre to Compose Multiplatform, on MapLibre Native on Android
 on GL JS on the web, and its declarative map, where the app composes sources and layers over a base
 style and the map follows the app's state, is the model [the content](#content-the-way-maplibre-compose-does-it)
 copies. It is also much further along. It has typed expressions in Kotlin, Material 3 controls,
-offline downloads, a snapshotter, requests the app answers itself, a location layer, and the same
-map presented in CarPlay, Android Auto, UIKit, SwiftUI or React.
+requests the app answers itself, a location layer, and the same map presented in CarPlay, Android
+Auto, UIKit, SwiftUI or React, and it draws with MapLibre Native, which is far more proven than
+mln-rs.
 
 The table follows its guides and says where maplibre-rust-ui is on each, so it doubles as a list of
 what is still to learn from it.
