@@ -24,6 +24,7 @@ mod offline;
 pub mod placement;
 mod requests;
 mod shared;
+mod snapshot;
 pub mod texture;
 
 pub use cache::set_cache_path;

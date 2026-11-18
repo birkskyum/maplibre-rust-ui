@@ -24,7 +24,7 @@ use crate::texture::MapTexture;
 use crate::{Engine, Phase, Pointer, Viewport};
 
 /// The events a map posts when its props name none.
-const ALL_EVENTS: [Event; 6] = Event::ALL;
+const ALL_EVENTS: [Event; 7] = Event::ALL;
 
 /// Where the camera is before the props set one: the whole world.
 const WORLD: Camera = Camera { center: [0.0, 0.0], zoom: 0.0, bearing: 0.0, pitch: 0.0 };
@@ -413,6 +413,7 @@ impl Component {
             failure: None,
             attribution: String::new(),
             regions: Vec::new(),
+            snapshot: None,
         });
         let mut posts = Vec::new();
         let mut post = |event: Event, record: &Record| {
@@ -474,6 +475,12 @@ impl Component {
             self.texture = Some(made);
         }
         TextureFrame { again, posts, texture: shown }
+    }
+
+    /// The PNG of the map's last snapshot, at its full size.
+    #[must_use]
+    pub fn snapshot_png(&self) -> Option<&[u8]> {
+        self.engine.as_ref()?.snapshot_png()
     }
 
     /// Runs a frame for a map of `viewport` that renders, on a thread of its
@@ -745,7 +752,7 @@ mod tests {
                 (
                     "error",
                     Some(
-                        "maplibre: events: nothing is no event; the map posts load, moveend, click, contextmenu, error and offline"
+                        "maplibre: events: nothing is no event; the map posts load, moveend, click, contextmenu, error, offline and snapshot"
                     )
                 )
             ]

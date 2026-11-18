@@ -41,10 +41,14 @@ use crate::model::{
 use crate::offline::{self, Regions};
 use crate::requests;
 use crate::shared;
+use crate::snapshot::{Scene, Snapshotter};
 
 /// How long a touch stays still to be a long press, in milliseconds: iOS's
 /// `UILongPressGestureRecognizer` default, and about Android's.
 const LONG_PRESS_MS: f64 = 500.0;
+
+/// The longest side of a snapshot, in points.
+const SNAPSHOT_SIDE: u32 = 4096;
 
 /// The size of the map in logical pixels, and the physical pixels in one.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -143,6 +147,13 @@ pub struct Engine {
     /// The app's offline regions, and what the runtime reported of their
     /// downloads since the last frame.
     regions: Regions,
+    /// A snapshot the app asked for, which the next frame starts, the one on
+    /// its way, and the last one taken: what the record has of it, until the
+    /// next event, and its PNG.
+    snapshot_asked: Option<(Size, f32)>,
+    snapshotter: Option<Snapshotter>,
+    taken: Option<model::Snapshot>,
+    taken_png: Option<Vec<u8>>,
     offline_updates: Arc<Mutex<Vec<offline::Update>>>,
     size: Size,
     scale: f32,
@@ -272,6 +283,10 @@ impl Engine {
             bounds_of: None,
             bounding: None,
             regions,
+            snapshot_asked: None,
+            snapshotter: None,
+            taken: None,
+            taken_png: None,
             offline_updates,
             size,
             scale,
@@ -505,6 +520,72 @@ impl Engine {
                     self.error = Some(format!("maplibre: deleteRegion: {e}"));
                 }
             }
+            Command::Snapshot { width, height, pixel_ratio } => {
+                let size = Size::new(width.unwrap_or(self.size.width), height.unwrap_or(self.size.height));
+                let ratio = pixel_ratio.unwrap_or(self.scale);
+                let sides = 1..=SNAPSHOT_SIDE;
+                if sides.contains(&size.width) && sides.contains(&size.height) && ratio > 0.0 && ratio <= 4.0 {
+                    self.snapshot_asked = Some((size, ratio));
+                } else {
+                    self.error = Some(format!(
+                        "maplibre: snapshot: its width and height are 1 to {SNAPSHOT_SIDE} points, and its pixelRatio more than 0 and at most 4"
+                    ));
+                }
+            }
+        }
+    }
+
+    /// The PNG of the last snapshot, at its full size.
+    #[must_use]
+    pub fn snapshot_png(&self) -> Option<&[u8]> {
+        self.taken_png.as_deref()
+    }
+
+    /// Starts the snapshot the app asked for, of the map as it shows, with
+    /// the content's images decoded so far.
+    fn start_snapshot(&mut self, decoded: &HashMap<String, PremultipliedImage>, events: &mut Vec<Event>) {
+        let Some((size, pixel_ratio)) = self.snapshot_asked else { return };
+        let Some((state, _)) = view_of(&self.snapshot.view) else { return };
+        self.snapshot_asked = None;
+        let scene = Scene {
+            style: &self.applied.style,
+            style_is_document: self.applied.style_is_document(),
+            camera: state.get_camera_options(None),
+            content: &self.applied.content,
+            images: decoded,
+            size,
+            pixel_ratio,
+        };
+        match Snapshotter::start(&self.runtime, &scene) {
+            Ok(snapshotter) => self.snapshotter = Some(snapshotter),
+            Err(e) => {
+                self.error = Some(format!("maplibre: snapshot: {e}"));
+                events.push(Event::Error);
+            }
+        }
+    }
+
+    /// Moves the snapshot on, and posts it once taken. The record has it
+    /// until the next event, so that it doesn't go with every record after.
+    fn poll_snapshot(&mut self, events: &mut Vec<Event>) {
+        let before = events.len();
+        if let Some(result) = self.snapshotter.as_mut().and_then(Snapshotter::poll) {
+            self.snapshotter = None;
+            match result {
+                Ok(taken) => {
+                    self.taken = Some(taken.record);
+                    self.taken_png = Some(taken.png);
+                    events.push(Event::Snapshot);
+                    return;
+                }
+                Err(e) => {
+                    self.error = Some(format!("maplibre: snapshot: {e}"));
+                    events.push(Event::Error);
+                }
+            }
+        }
+        if events.len() > before || events.iter().any(|event| *event != Event::Snapshot) {
+            self.taken = None;
         }
     }
 
@@ -614,6 +695,7 @@ impl Engine {
             events.push(Event::Error);
         }
         self.apply_content(decoded);
+        self.start_snapshot(decoded, events);
         self.render();
         self.refresh();
         let resting =
@@ -643,7 +725,10 @@ impl Engine {
             || self.sources.is_some()
             || self.bounding.is_some()
             || self.regions.busy()
+            || self.snapshot_asked.is_some()
+            || self.snapshotter.is_some()
             || !matches!(self.style, StyleState::Loaded(_));
+        self.poll_snapshot(events);
         waiting || !resting
     }
 
@@ -958,6 +1043,7 @@ impl Engine {
             failure: self.error.clone(),
             attribution: self.attribution.clone(),
             regions: self.regions.record(),
+            snapshot: self.taken.clone(),
         }
     }
 }
@@ -1289,5 +1375,47 @@ mod tests {
         let delete = format!(r#"{{"command":"deleteRegion","name":"{name}"}}"#);
         second.command(Command::parse(&delete).unwrap_or_else(|e| panic!("{e}")), now);
         until(&mut second, &mut now, |record| region(record).is_none());
+    }
+
+    #[test]
+    fn a_snapshot_shows_the_style_and_content_and_stays_in_the_record_until_the_next_event() {
+        let style = r##"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"#ff0000"}}]}"##;
+        let mut map = engine_of(style, Options::default());
+        let mut inputs = map.applied.clone();
+        inputs.content = Content::parse(
+            r##"{"layers":[{"id":"cover","type":"background","paint":{"background-color":"#00ff00"}}]}"##,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        map.apply_inputs(&inputs);
+        let mut now = 0.0;
+        until(&mut map, &mut now, |record| record.loaded);
+        map.command(
+            Command::parse(r#"{"command":"snapshot","width":64,"height":32,"pixelRatio":2}"#)
+                .unwrap_or_else(|e| panic!("{e}")),
+            now,
+        );
+        let (mut posted, deadline) = (Vec::new(), Instant::now() + Duration::from_secs(20));
+        let snapshot = loop {
+            now += 16.0;
+            posted.clear();
+            map.frame(now, &HashMap::new(), &mut posted);
+            if let Some(snapshot) = map.record().snapshot {
+                break snapshot;
+            }
+            assert!(Instant::now() < deadline, "no snapshot: {:?}", map.record().failure);
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        assert!(posted.contains(&Event::Snapshot));
+        assert_eq!((snapshot.width, snapshot.height, snapshot.pixel_ratio), (64, 32, 2.0));
+        assert!(snapshot.url.starts_with("data:image/png;base64,"));
+        let png = mln_image::decode_png(map.snapshot_png().unwrap_or_default()).unwrap_or_else(|e| panic!("{e:?}"));
+        assert_eq!((png.size.width, png.size.height), (128, 64));
+        // The content's layer, over the style's.
+        assert_eq!(&png.data[..4], &[0, 255, 0, 255]);
+
+        map.command(Command::parse(r#"{"command":"jumpTo","zoom":11}"#).unwrap_or_else(|e| panic!("{e}")), now);
+        let record = until(&mut map, &mut now, |record| record.camera.zoom == 11.0);
+        assert_eq!(record.snapshot, None);
+        assert!(map.snapshot_png().is_some());
     }
 }

@@ -219,6 +219,7 @@ A command is a JSON object whose `command` names it, with GL JS's camera options
 | `pauseRegion` | Pauses a region's download, `{"name": "zurich"}` |
 | `refreshRegion` | Has maps check a region's resources with their servers before they use them again |
 | `deleteRegion` | Deletes a region, with what no other region needs |
+| `snapshot` | Takes a snapshot of the map as it shows, below |
 
 `jumpTo`, `easeTo` and `flyTo` take `center`, `zoom`, `bearing` and `pitch`, and set only those given.
 `jumpTo` and `easeTo` also take `around`, a `[longitude, latitude]` that stays where it is on the
@@ -241,6 +242,7 @@ map's record, which has the details.
 | `contextmenu` | A secondary click, or a touch held still for half a second, which the record's `contextmenu` describes. Its release is no click |
 | `error` | Something failed, which the record's `failure` says |
 | `offline` | An offline region changed, as it downloaded more, finished, paused or went, which the record's `regions` lists. While a region downloads, a few times a second at most |
+| `snapshot` | A snapshot finished, which the record's `snapshot` has |
 
 ## The record
 
@@ -281,6 +283,7 @@ the record changes when something happens and not on every frame of a gesture.
 | `failure` | The last error, `null` while there has been none |
 | `attribution` | Who the style's data comes from, as text to show on or beside the map, the sources' attributions joined by vertical bars |
 | `regions` | The offline regions in the app's database, below |
+| `snapshot` | The snapshot the map just took, below, until the next event |
 
 A click has its `lngLat` and `point` as GL JS's `MapMouseEvent` has them, the point in points from the
 map's top-left corner. Its `features` are those of the content's layers at the click, widened by
@@ -316,3 +319,22 @@ of the name it gives resumes instead. Each region in the record's `regions` has 
 
 A download goes on while the app runs, and one that the app stopped, or paused, resumes with another
 `downloadRegion` of its name. The browser has no offline regions, since it has no cache database.
+
+## Snapshots
+
+`{"command": "snapshot"}` takes a snapshot of the map as it shows: its style, content and camera,
+without the app's markers, which are its own elements. It takes `width` and `height` in points and a
+`pixelRatio`, which are the map's own without them, as MapLibre Compose's snapshotter takes a size.
+The map renders it offscreen, as a map of its own, once everything it shows has loaded, and then
+posts `snapshot`.
+
+The record's `snapshot` has it until the next event, so that it doesn't go with every record after,
+and an app keeps what it needs of it on `snapshot`.
+
+| Field | What it is |
+|---|---|
+| `url` | The PNG as a `data:` URL of at most 1 MiB, which Exact's `image` shows, made smaller when the snapshot is larger |
+| `width`, `height` | Its size in points |
+| `pixelRatio` | The URL's image pixels in a point, less than the one asked for when it was made smaller |
+
+A host in Rust also has the PNG at its full size, from `snapshot_png()`.

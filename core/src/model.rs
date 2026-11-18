@@ -560,6 +560,14 @@ pub enum Command {
     DeleteRegion {
         name: String,
     },
+    /// Takes a snapshot of the map as it shows, `width` by `height` points at
+    /// `pixelRatio`, the map's own by default, which the record's `snapshot`
+    /// then has.
+    Snapshot {
+        width: Option<u32>,
+        height: Option<u32>,
+        pixel_ratio: Option<f32>,
+    },
 }
 
 impl Command {
@@ -592,11 +600,14 @@ pub enum Event {
     /// The offline regions changed, as one downloaded more or finished,
     /// which the record's `regions` lists.
     Offline,
+    /// A snapshot finished, which the record's `snapshot` has until the next
+    /// event.
+    Snapshot,
 }
 
 impl Event {
-    pub(crate) const ALL: [Event; 6] =
-        [Event::Load, Event::Moveend, Event::Click, Event::Contextmenu, Event::Error, Event::Offline];
+    pub(crate) const ALL: [Event; 7] =
+        [Event::Load, Event::Moveend, Event::Click, Event::Contextmenu, Event::Error, Event::Offline, Event::Snapshot];
 
     /// The events named in `text`, separated by spaces or commas.
     ///
@@ -608,7 +619,7 @@ impl Event {
             .filter(|word| !word.is_empty())
             .map(|word| {
                 Event::ALL.into_iter().find(|event| event.name() == word).ok_or_else(|| {
-                    format!("maplibre: events: {word} is no event; the map posts load, moveend, click, contextmenu, error and offline")
+                    format!("maplibre: events: {word} is no event; the map posts load, moveend, click, contextmenu, error, offline and snapshot")
                 })
             })
             .collect()
@@ -624,6 +635,7 @@ impl Event {
             Event::Contextmenu => "contextmenu",
             Event::Error => "error",
             Event::Offline => "offline",
+            Event::Snapshot => "snapshot",
         }
     }
 }
@@ -651,6 +663,23 @@ pub struct Record {
     pub attribution: String,
     /// The offline regions in the app's database.
     pub regions: Vec<Region>,
+    /// The snapshot the map just took, until the next event, so that it
+    /// doesn't go with every record after.
+    pub snapshot: Option<Snapshot>,
+}
+
+/// A snapshot of the map.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Snapshot {
+    /// The PNG as a `data:` URL of at most 1 MiB, which Exact's `image` shows
+    /// up to, made smaller when the snapshot is larger.
+    pub url: String,
+    /// Points.
+    pub width: u32,
+    pub height: u32,
+    /// The URL's image pixels in a point.
+    pub pixel_ratio: f32,
 }
 
 /// An offline region: the style and tiles of an area, kept for maps to show
@@ -984,10 +1013,11 @@ mod tests {
             failure: None,
             attribution: String::new(),
             regions: Vec::new(),
+            snapshot: None,
         };
         assert_eq!(
             record.to_json(),
-            r#"{"center":[1.0,2.0],"zoom":3.0,"bearing":0.0,"pitch":0.0,"bounds":null,"loaded":true,"click":null,"contextmenu":null,"failure":null,"attribution":"","regions":[]}"#
+            r#"{"center":[1.0,2.0],"zoom":3.0,"bearing":0.0,"pitch":0.0,"bounds":null,"loaded":true,"click":null,"contextmenu":null,"failure":null,"attribution":"","regions":[],"snapshot":null}"#
         );
     }
 
