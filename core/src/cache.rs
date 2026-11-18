@@ -17,8 +17,10 @@ static ANDROID_CACHE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 const FILE: &str = "maplibre.db";
 
-/// Has the maps made from now on keep their cache database at `path`, or in
-/// memory for `None`, instead of in the app's cache directory.
+/// Has the app's maps keep their cache database at `path`, or in memory for
+/// `None`, instead of in the app's cache directory. The maps share one
+/// runtime, which opens the database with the first map, so this takes
+/// effect only before that.
 pub fn set_cache_path(path: Option<PathBuf>) {
     *CHOSEN.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(path);
 }

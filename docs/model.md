@@ -196,8 +196,9 @@ include, when it names them.
 | `query` | Parameters added to the URL, such as an API key |
 | `headers` | Headers sent with the request, such as a token. Headers that the engine manages, such as `User-Agent` or `Range`, are left out |
 
-New rules apply to the requests the map makes from then on. In the browser, which sends a page's
-requests itself, a rule can't add headers.
+New rules apply to the requests the map makes from then on. The app's maps send their requests
+through one runtime, so a request takes the first rule of any map's, in the order the maps were made.
+In the browser, which sends a page's requests itself, a rule can't add headers.
 
 ## Commands
 
@@ -313,5 +314,5 @@ of the name it gives resumes instead. Each region in the record's `regions` has 
 | `completedBytes` | The bytes downloaded |
 | `error` | The last resource that failed to download, `null` while none has |
 
-A download goes on while a map of the app runs, and a paused or unfinished one resumes with another
+A download goes on while the app runs, and one that the app stopped, or paused, resumes with another
 `downloadRegion` of its name. The browser has no offline regions, since it has no cache database.

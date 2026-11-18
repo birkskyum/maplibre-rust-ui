@@ -23,6 +23,7 @@ pub mod model;
 mod offline;
 pub mod placement;
 mod requests;
+mod shared;
 pub mod texture;
 
 pub use cache::set_cache_path;

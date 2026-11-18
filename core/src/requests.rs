@@ -1,31 +1,48 @@
-//! The app's rules for the map's requests ([`RequestRule`]), as GL JS's
+//! The app's rules for the maps' requests ([`RequestRule`]), as GL JS's
 //! `transformRequest` answers for each request, written as data, since a host
 //! such as Exact can't run a function of the app's for each request. A request
 //! takes the first rule whose `prefix` its URL starts with: the rule's `url`
 //! replaces the prefix, its `query` parameters are added, and its `headers`
-//! go with the request.
+//! go with the request. The maps share a runtime, which sends the requests of
+//! them all, so a request takes the first rule of any map's, in the order the
+//! maps came.
 
-use mln_runtime::{Error, Runtime};
+use std::sync::{Mutex, PoisonError};
+
+use mln_runtime::{Error, MapId, Runtime};
 use mln_storage::resource::Kind;
 
 use crate::model::{RequestRule, ResourceType};
 
-/// Has `runtime` send its requests as `rules` say, from its next request on.
-/// No rules clear the runtime's transforms.
-pub(crate) fn apply(runtime: &Runtime, rules: &[RequestRule]) -> Result<(), Error> {
-    if rules.iter().any(|rule| rule.url.is_some() || !rule.query.is_empty()) {
-        let rules = rules.to_vec();
-        let _set = runtime.set_resource_transform(move |kind, url, done| done(Ok(rewrite(&rules, kind, url))))?;
-    } else {
-        let _cleared = runtime.clear_resource_transform()?;
-    }
-    if rules.iter().any(|rule| !rule.headers.is_empty()) {
-        let rules = rules.to_vec();
-        let _set = runtime.set_http_header_transform(move |kind, url| headers(&rules, kind, url))?;
-    } else {
-        let _cleared = runtime.clear_http_header_transform()?;
+/// Each map's rules, in the order the maps came.
+static RULES: Mutex<Vec<(MapId, Vec<RequestRule>)>> = Mutex::new(Vec::new());
+
+/// Has `runtime` send its requests as the maps' rules say.
+pub(crate) fn install(runtime: &Runtime) -> Result<(), Error> {
+    let _rewrites = runtime.set_resource_transform(|kind, url, done| done(Ok(rewrite(&rules(), kind, url))))?;
+    // The browser sends the requests, and their headers, itself.
+    if !cfg!(target_family = "wasm") {
+        let _headers = runtime.set_http_header_transform(|kind, url| headers(&rules(), kind, url))?;
     }
     Ok(())
+}
+
+/// Has the map `map`'s requests, and the others', follow `rules` from the
+/// next request on.
+pub(crate) fn set(map: MapId, rules: &[RequestRule]) {
+    let mut all = RULES.lock().unwrap_or_else(PoisonError::into_inner);
+    match all.iter_mut().find(|(of, _)| *of == map) {
+        Some((_, held)) => *held = rules.to_vec(),
+        None => all.push((map, rules.to_vec())),
+    }
+}
+
+pub(crate) fn forget(map: MapId) {
+    RULES.lock().unwrap_or_else(PoisonError::into_inner).retain(|(of, _)| *of != map);
+}
+
+fn rules() -> Vec<RequestRule> {
+    RULES.lock().unwrap_or_else(PoisonError::into_inner).iter().flat_map(|(_, rules)| rules.iter().cloned()).collect()
 }
 
 /// Whether `rule` covers a request of `kind`.

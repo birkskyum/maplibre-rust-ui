@@ -25,8 +25,8 @@ use mln_map::{
 use mln_runtime::{
     AcquiredFrame, AttachOptions, BorrowedRing, CameraFitArea, CameraFitOptions, Completion, ConsumerSync, DemandMode,
     Driver, DriverWork, ErrorKind, EventMask, FrameDemand, FrameDisposition, GpuSync, LogicalExtent, MapOptions,
-    MapSnapshot, RenderSession, RenderTarget, RenderedQueryGeometry, RenderedQueryOptions, Runtime, RuntimeEventKind,
-    RuntimeOptions, SourceInfo, SyncKind, SyncKinds,
+    MapSnapshot, RenderSession, RenderTarget, RenderedQueryGeometry, RenderedQueryOptions, Runtime, SourceInfo,
+    SyncKind, SyncKinds,
 };
 use mln_util::geo::{EdgeInsets, LatLng, LatLngBounds, ScreenCoordinate, WrapMode};
 use mln_util::image::PremultipliedImage;
@@ -40,6 +40,7 @@ use crate::model::{
 };
 use crate::offline::{self, Regions};
 use crate::requests;
+use crate::shared;
 
 /// How long a touch stays still to be a long press, in milliseconds: iOS's
 /// `UILongPressGestureRecognizer` default, and about Android's.
@@ -204,40 +205,9 @@ impl Engine {
         driver: Driver,
     ) -> Result<Engine, String> {
         let fail = |e: mln_runtime::Error| format!("maplibre: {}", e.message);
-        // A cache database the runtime can't open leaves the cache in memory,
-        // and the app hears why.
-        let cached = crate::cache::path().and_then(|cache_path| {
-            Runtime::new(&RuntimeOptions { cache_path, ..RuntimeOptions::default() }).map_err(|e| e.message)
-        });
-        let (runtime, cache_failure) = match cached {
-            Ok(runtime) => (runtime, None),
-            Err(why) => {
-                (Runtime::new(&RuntimeOptions::default()).map_err(fail)?, Some(format!("maplibre: cache: {why}")))
-            }
-        };
+        let (runtime, cache_failure) = shared::runtime()?;
         let events = Arc::new(Mutex::new(Vec::new()));
         let offline_updates = Arc::new(Mutex::new(Vec::new()));
-        let (sink, offline_sink) = (events.clone(), offline_updates.clone());
-        // The handler takes effect before the map is made, on the runtime's
-        // thread, which runs commands in order.
-        let _handler = runtime
-            .set_event_handler(move |batch| {
-                let mut sink = sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-                let mut offline = offline_sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-                for event in batch {
-                    match &event.kind {
-                        RuntimeEventKind::Map(event) => sink.push(event.clone()),
-                        RuntimeEventKind::OfflineRegionStatusChanged { region_id, status } => {
-                            offline.push(offline::Update::Status(*region_id, *status));
-                        }
-                        RuntimeEventKind::OfflineRegionResponseError { region_id, error } => {
-                            let message = format!("{:?}: {}", error.reason, error.message);
-                            offline.push(offline::Update::Failed(*region_id, message));
-                        }
-                    }
-                }
-            })
-            .map_err(fail)?;
         let Viewport { size, scale } = viewport;
         let options = MapOptions {
             map: mln_map::MapOptions { size, pixel_ratio: scale, map_mode: MapMode::Continuous, ..Default::default() },
@@ -245,10 +215,11 @@ impl Engine {
             ..Default::default()
         };
         let (map, created) = runtime.create_map(options).map_err(fail)?;
+        // The map's events go to this engine from before it loads its style.
+        shared::follow(map.id(), events.clone(), offline_updates.clone());
+        requests::set(map.id(), inputs.options.transform_request.as_deref().unwrap_or_default());
         // The map has a snapshot once its thread made it, which takes moments.
         created.wait().map_err(fail)?;
-        let rules = inputs.options.transform_request.as_deref().unwrap_or_default();
-        requests::apply(&runtime, rules).map_err(|e| format!("maplibre: options: transformRequest: {}", e.message))?;
         load_style(&map, &inputs).map_err(fail)?;
         let jump = CameraUpdate { camera: camera_options(&everything(&inputs.camera)), ..Default::default() };
         let _jumped = map.update_camera(jump).map_err(fail)?;
@@ -369,11 +340,8 @@ impl Engine {
         if inputs.options != self.applied.options {
             self.apply_options(&inputs.options);
         }
-        if inputs.options.transform_request != self.applied.options.transform_request
-            && let Err(e) =
-                requests::apply(&self.runtime, inputs.options.transform_request.as_deref().unwrap_or_default())
-        {
-            self.error = Some(format!("maplibre: options: transformRequest: {}", e.message));
+        if inputs.options.transform_request != self.applied.options.transform_request {
+            requests::set(self.map.id(), inputs.options.transform_request.as_deref().unwrap_or_default());
         }
         self.applied = inputs.clone();
     }
@@ -1001,6 +969,8 @@ impl Drop for Engine {
         self.newest = None;
         let _ = self.session.abandon();
         let _ = self.session.release();
+        shared::forget(self.map.id());
+        requests::forget(self.map.id());
         let _ = self.map.release();
     }
 }
@@ -1093,7 +1063,7 @@ mod tests {
     }
 
     fn engine_of(style: &str, options: Options) -> Engine {
-        crate::set_cache_path(Some(std::env::temp_dir().join("maplibre-rust-ui-tests").join("maplibre.db")));
+        crate::set_cache_path(Some(cache_file()));
         let inputs = Inputs {
             style: style.to_owned(),
             camera: Camera { center: ZURICH, zoom: 10.0, bearing: 0.0, pitch: 0.0 },
@@ -1248,22 +1218,27 @@ mod tests {
         assert!(head.iter().any(|line| line.eq_ignore_ascii_case("authorization: Bearer t")), "{head:?}");
     }
 
+    /// The cache database of the tests' maps, which they share, as an app's
+    /// maps do. Each run of the tests has its own, as each app does.
+    fn cache_file() -> std::path::PathBuf {
+        std::env::temp_dir().join("maplibre-rust-ui-tests").join(std::process::id().to_string()).join("maplibre.db")
+    }
+
     #[test]
-    fn a_map_loads_from_the_cache_on_disk_what_an_earlier_map_loaded() {
-        let mut server =
+    fn what_a_map_loads_stays_in_the_cache_database_on_disk() {
+        let server =
             Server::new(|_, _| r#"{"version":8,"sources":{},"layers":[{"id":"bg","type":"background"}]}"#.to_owned());
         let style = format!("http://127.0.0.1:{}/style.json", server.port);
         let mut now = 0.0;
-        let mut first = engine_of(&style, Options::default());
-        until(&mut first, &mut now, |record| record.loaded);
+        let mut map = engine_of(&style, Options::default());
+        until(&mut map, &mut now, |record| record.loaded);
         // The database's thread writes what the map loaded into the cache, in
         // order with the runtime's offline commands, so this one waits for it.
-        let _written = first.runtime.offline().regions().map(Completion::wait);
-        drop(first);
-        server.stop();
-        let mut second = engine_of(&style, Options::default());
-        let record = until(&mut second, &mut now, |record| record.loaded || record.failure.is_some());
-        assert!(record.loaded, "{:?}", record.failure);
+        let _written = map.runtime.offline().regions().map(Completion::wait);
+        // The file holds the style, as the app's next run reads it.
+        let mut database = mln_storage::OfflineDatabase::new(cache_file().to_string_lossy());
+        let cached = database.get(&mln_storage::Resource::style(&style));
+        assert!(cached.is_some_and(|response| response.error.is_none() && !response.no_content));
     }
 
     /// Serves a style of one vector source, whose tiles are empty, at
@@ -1302,7 +1277,10 @@ mod tests {
             if let Some(region) = region(&record).filter(|region| region.state == RegionState::Complete) {
                 break region;
             }
-            assert!(Instant::now() < deadline, "the region never downloaded: {record:?}");
+            if Instant::now() >= deadline {
+                let asked: Vec<String> = server.heads.try_iter().filter_map(|head| head.into_iter().next()).collect();
+                panic!("the region never downloaded: {:?}, after the requests {asked:?}", record.regions);
+            }
             std::thread::sleep(Duration::from_millis(5));
         };
         assert!(posted.contains(&Event::Offline));

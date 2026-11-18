@@ -15,6 +15,7 @@ use serde_json::Value as Json;
 use crate::model::{Event, Region, RegionState};
 
 /// What the runtime reported of a region's download.
+#[derive(Clone)]
 pub(crate) enum Update {
     Status(i64, OfflineRegionStatus),
     Failed(i64, String),
@@ -27,6 +28,9 @@ const POST_INTERVAL_MS: f64 = 250.0;
 struct Known {
     id: i64,
     region: Region,
+    /// How many statuses its download reported, so that a status asked for
+    /// before the last of them, which is older, is left out.
+    reported: u64,
 }
 
 /// The regions a map knows of, and the runtime's work on them.
@@ -35,7 +39,8 @@ pub(crate) struct Regions {
     listing: Option<Completion<Vec<OfflineRegion>>>,
     /// Regions being made, by name, which start to download once made.
     creating: Vec<(String, Completion<OfflineRegion>)>,
-    statuses: Vec<(i64, Completion<OfflineRegionStatus>)>,
+    /// Statuses asked for, each with how many the download had reported then.
+    statuses: Vec<(i64, u64, Completion<OfflineRegionStatus>)>,
     deleting: Vec<(i64, Completion<()>)>,
     /// Commands whose failure the app hears of, with what they did.
     sent: Vec<(String, Completion<()>)>,
@@ -126,8 +131,13 @@ impl Regions {
         self.send(format!("region {name}"), runtime.offline().set_region_download_state(id, state));
         // The download reports its own status as it goes, and a paused one
         // only through a status asked for.
+        self.ask_status(runtime, id);
+    }
+
+    fn ask_status(&mut self, runtime: &Runtime, id: i64) {
+        let reported = self.known.iter().find(|known| known.id == id).map_or(0, |known| known.reported);
         if let Ok(status) = runtime.offline().region_status(id) {
-            self.statuses.push((id, status));
+            self.statuses.push((id, reported, status));
         }
     }
 
@@ -138,7 +148,12 @@ impl Regions {
     /// Takes in what the runtime reported of a download.
     pub(crate) fn update(&mut self, update: Update) {
         match update {
-            Update::Status(id, status) => self.set_status(id, &status),
+            Update::Status(id, status) => {
+                if let Some(known) = self.known.iter_mut().find(|known| known.id == id) {
+                    known.reported += 1;
+                }
+                self.set_status(id, &status);
+            }
             Update::Failed(id, message) => {
                 if let Some(known) = self.known.iter_mut().find(|known| known.id == id) {
                     known.region.error = Some(message);
@@ -187,10 +202,13 @@ impl Regions {
             }
         }
         let (answered, statuses): (Vec<_>, Vec<_>) =
-            std::mem::take(&mut self.statuses).into_iter().partition(|(_, status)| status.is_complete());
+            std::mem::take(&mut self.statuses).into_iter().partition(|(_, _, status)| status.is_complete());
         self.statuses = statuses;
-        for (id, status) in answered {
-            if let Ok(status) = status.wait() {
+        for (id, reported, status) in answered {
+            let newer = self.known.iter().any(|known| known.id == id && known.reported > reported);
+            if let Ok(status) = status.wait()
+                && !newer
+            {
                 self.set_status(id, &status);
             }
         }
@@ -247,6 +265,7 @@ impl Regions {
                 completed_bytes: 0,
                 error: None,
             },
+            reported: 0,
         });
         self.changed = true;
         self.urgent = true;
@@ -254,9 +273,7 @@ impl Regions {
             format!("region {}", name_of(region)),
             runtime.offline().set_region_observed(region.id, EventMask::ALL_RUNTIME_EVENTS),
         );
-        if let Ok(status) = runtime.offline().region_status(region.id) {
-            self.statuses.push((region.id, status));
-        }
+        self.ask_status(runtime, region.id);
     }
 
     /// The regions, as the record lists them.

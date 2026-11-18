@@ -120,8 +120,12 @@ its style and tiles from there the next time, and without a network. It is in th
 directory, as MapLibre's SDKs keep theirs: `Library/Caches` on Apple's platforms, which is the app's
 own in a sandbox, the context's cache directory on Android, which `android_init` asks for, and the
 user's cache directory on Linux and Windows, each in a folder of the app's. A host or an app moves it
-with `set_cache_path`, or keeps it in memory. A database the runtime can't open leaves the cache in
-memory, and the app hears why as a failure. The browser caches the requests itself.
+with `set_cache_path` before its first map, or keeps it in memory. A database the runtime can't open
+leaves the cache in memory, and the app hears why as a failure. The browser caches the requests itself.
+
+The app's maps share one mln-rs runtime, as the runtime is made to hold them, so the database has one
+connection. Runtimes of their own would each open it, and one connection could then wait without end
+for another's lock.
 
 ## Following MapLibre Compose
 
