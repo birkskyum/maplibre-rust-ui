@@ -1063,7 +1063,6 @@ mod tests {
     }
 
     fn engine_of(style: &str, options: Options) -> Engine {
-        crate::set_cache_path(Some(cache_file()));
         let inputs = Inputs {
             style: style.to_owned(),
             camera: Camera { center: ZURICH, zoom: 10.0, bearing: 0.0, pitch: 0.0 },
@@ -1218,12 +1217,6 @@ mod tests {
         assert!(head.iter().any(|line| line.eq_ignore_ascii_case("authorization: Bearer t")), "{head:?}");
     }
 
-    /// The cache database of the tests' maps, which they share, as an app's
-    /// maps do. Each run of the tests has its own, as each app does.
-    fn cache_file() -> std::path::PathBuf {
-        std::env::temp_dir().join("maplibre-rust-ui-tests").join(std::process::id().to_string()).join("maplibre.db")
-    }
-
     #[test]
     fn what_a_map_loads_stays_in_the_cache_database_on_disk() {
         let server =
@@ -1236,7 +1229,7 @@ mod tests {
         // order with the runtime's offline commands, so this one waits for it.
         let _written = map.runtime.offline().regions().map(Completion::wait);
         // The file holds the style, as the app's next run reads it.
-        let mut database = mln_storage::OfflineDatabase::new(cache_file().to_string_lossy());
+        let mut database = mln_storage::OfflineDatabase::new(crate::cache::tests_file().to_string_lossy());
         let cached = database.get(&mln_storage::Resource::style(&style));
         assert!(cached.is_some_and(|response| response.error.is_none() && !response.no_content));
     }

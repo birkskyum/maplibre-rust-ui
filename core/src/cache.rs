@@ -33,12 +33,19 @@ pub(crate) fn path() -> Result<Option<PathBuf>, String> {
     let chosen = CHOSEN.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
     let path = match chosen {
         Some(path) => path,
+        None if cfg!(test) => Some(tests_file()),
         None => default_dir().map(|dir| dir.join(FILE)),
     };
     if let Some(dir) = path.as_deref().and_then(Path::parent) {
         std::fs::create_dir_all(dir).map_err(|e| format!("can't make the cache directory {}: {e}", dir.display()))?;
     }
     Ok(path)
+}
+
+/// The tests' cache database, whichever test makes the first map: one for
+/// each run of the tests, as each app has its own.
+pub(crate) fn tests_file() -> PathBuf {
+    std::env::temp_dir().join("maplibre-rust-ui-tests").join(std::process::id().to_string()).join(FILE)
 }
 
 /// The app's own directory for caches, with a folder of this library's.
