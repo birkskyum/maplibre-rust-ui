@@ -29,6 +29,7 @@ pub mod texture;
 
 pub use cache::set_cache_path;
 pub use engine::{Engine, Phase, Pointer, Viewport};
+pub use snapshot::SnapshotFiles;
 pub use {
     mln_gestures as gestures, mln_image as image, mln_map as map, mln_runtime as runtime, mln_util as util,
     mln_webgpu as webgpu, wgpu,

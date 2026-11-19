@@ -4,9 +4,16 @@
 //! one render session at a time, and the hosts' sessions draw to surfaces or
 //! the hosts' textures, which can't be read back, so the map can't be read
 //! itself.
+//!
+//! A snapshot goes to the app as a `data:` URL in the record, or as a PNG
+//! file the record names, when the host has a directory for them, as Exact
+//! has `app:/cache`.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime};
 
 use mln_map::{CameraOptions, CameraUpdate, MapEvent, MapMode};
 use mln_runtime::{AttachOptions, Completion, EventMask, Map, MapOptions, RenderSession, RenderTarget, Runtime};
@@ -21,6 +28,52 @@ use crate::shared;
 /// shows up to.
 const LARGEST_URL: usize = 1 << 20;
 
+/// What the names of snapshot files start with.
+const PREFIX: &str = "snapshot-";
+
+/// How long a snapshot file stays at least, while the app may still show it.
+const KEPT_FOR: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// Where a map's snapshots go as PNG files, and the URL that names that
+/// directory to the app, such as Exact's `app:/cache/maplibre`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SnapshotFiles {
+    pub dir: PathBuf,
+    pub url: String,
+}
+
+impl SnapshotFiles {
+    /// Removes the snapshots in the directory older than a day, which the
+    /// app had long enough. The directory may not be there yet.
+    pub(crate) fn clear_old(&self) {
+        let Ok(entries) = std::fs::read_dir(&self.dir) else { return };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            let old = entry
+                .metadata()
+                .and_then(|metadata| metadata.modified())
+                .is_ok_and(|modified| modified.elapsed().is_ok_and(|age| age > KEPT_FOR));
+            if name.starts_with(PREFIX) && name.ends_with(".png") && old {
+                let _ = std::fs::remove_file(entry.path());
+            }
+        }
+    }
+
+    /// Writes `png` as a file of its own, as an app's `image` keeps what it
+    /// showed of a name, and returns the file's URL.
+    fn write(&self, png: &[u8]) -> Result<String, String> {
+        static WRITTEN: AtomicU64 = AtomicU64::new(0);
+        let millis = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |since| since.as_millis());
+        let name = format!("{PREFIX}{millis}-{}.png", WRITTEN.fetch_add(1, Ordering::Relaxed));
+        let path = self.dir.join(&name);
+        std::fs::create_dir_all(&self.dir)
+            .and_then(|()| std::fs::write(&path, png))
+            .map_err(|e| format!("can't write {}: {e}", path.display()))?;
+        Ok(format!("{}/{name}", self.url.trim_end_matches('/')))
+    }
+}
+
 /// What a snapshot is of.
 pub(crate) struct Scene<'a> {
     pub(crate) style: &'a str,
@@ -31,6 +84,7 @@ pub(crate) struct Scene<'a> {
     /// Points, and image pixels in each.
     pub(crate) size: Size,
     pub(crate) pixel_ratio: f32,
+    pub(crate) files: Option<&'a SnapshotFiles>,
 }
 
 enum Stage {
@@ -53,6 +107,7 @@ pub(crate) struct Snapshotter {
     images: HashMap<String, PremultipliedImage>,
     size: Size,
     pixel_ratio: f32,
+    files: Option<SnapshotFiles>,
 }
 
 /// A finished snapshot: the PNG, and what the record has of it.
@@ -99,6 +154,7 @@ impl Snapshotter {
                 images: scene.images.clone(),
                 size: scene.size,
                 pixel_ratio: scene.pixel_ratio,
+                files: scene.files.cloned(),
             }),
             Err(e) => {
                 shared::forget(map.id());
@@ -158,7 +214,7 @@ impl Snapshotter {
                     let Stage::Reading(pixels) = std::mem::replace(&mut self.stage, Stage::Loading) else {
                         unreachable!()
                     };
-                    return Some(pixels.wait().map(|pixels| self.taken(&pixels)).map_err(|e| e.message));
+                    return Some(pixels.wait().map_err(|e| e.message).and_then(|pixels| self.taken(&pixels)));
                 }
                 _ => return None,
             };
@@ -166,11 +222,15 @@ impl Snapshotter {
         }
     }
 
-    /// The PNG of `pixels`, and a `data:` URL of it for the record.
-    fn taken(&self, pixels: &PremultipliedImage) -> Taken {
+    /// The PNG of `pixels`, and its file's URL or a `data:` URL of it for
+    /// the record.
+    fn taken(&self, pixels: &PremultipliedImage) -> Result<Taken, String> {
         let png = mln_image::encode_png(pixels);
-        let (url, pixel_ratio) = fit(&png, pixels, self.size, self.pixel_ratio, LARGEST_URL);
-        Taken { record: Snapshot { url, width: self.size.width, height: self.size.height, pixel_ratio }, png }
+        let (url, pixel_ratio) = match &self.files {
+            Some(files) => (files.write(&png)?, self.pixel_ratio),
+            None => fit(&png, pixels, self.size, self.pixel_ratio, LARGEST_URL),
+        };
+        Ok(Taken { record: Snapshot { url, width: self.size.width, height: self.size.height, pixel_ratio }, png })
     }
 }
 
@@ -279,6 +339,27 @@ mod tests {
         assert!(ratio < 2.0 && ratio > 0.0, "{ratio}");
         let (whole, kept) = fit(&png, &pixels, Size::new(64, 32), 2.0, 1 << 20);
         assert_eq!((whole, kept), (data_url(&png), 2.0));
+    }
+
+    #[test]
+    fn each_snapshot_file_has_a_name_of_its_own_until_it_is_a_day_old() {
+        let dir = std::env::temp_dir().join("maplibre-rust-ui-tests").join(format!("snapshots-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let files = SnapshotFiles { dir: dir.clone(), url: "app:/cache/maplibre/".to_owned() };
+        let (first, second) = (files.write(b"one"), files.write(b"two"));
+        let (first, second) = (first.unwrap_or_default(), second.unwrap_or_default());
+        assert!(first.starts_with("app:/cache/maplibre/snapshot-") && first.ends_with(".png"), "{first}");
+        assert_ne!(first, second);
+        let path = |url: &str| dir.join(url.rsplit('/').next().unwrap_or_default());
+        assert_eq!(std::fs::read(path(&second)).ok(), Some(b"two".to_vec()));
+
+        let two_days_ago = SystemTime::now() - 2 * KEPT_FOR;
+        let aged =
+            std::fs::File::options().write(true).open(path(&first)).and_then(|file| file.set_modified(two_days_ago));
+        assert!(aged.is_ok(), "{aged:?}");
+        files.clear_old();
+        assert!(!path(&first).exists() && path(&second).exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -41,7 +41,7 @@ use crate::model::{
 use crate::offline::{self, Regions};
 use crate::requests;
 use crate::shared;
-use crate::snapshot::{Scene, Snapshotter};
+use crate::snapshot::{Scene, SnapshotFiles, Snapshotter};
 
 /// How long a touch stays still to be a long press, in milliseconds: iOS's
 /// `UILongPressGestureRecognizer` default, and about Android's.
@@ -154,6 +154,8 @@ pub struct Engine {
     snapshotter: Option<Snapshotter>,
     taken: Option<model::Snapshot>,
     taken_png: Option<Vec<u8>>,
+    /// Where snapshots go as files, when the host has a place for them.
+    snapshot_files: Option<SnapshotFiles>,
     offline_updates: Arc<Mutex<Vec<offline::Update>>>,
     size: Size,
     scale: f32,
@@ -287,6 +289,7 @@ impl Engine {
             snapshotter: None,
             taken: None,
             taken_png: None,
+            snapshot_files: None,
             offline_updates,
             size,
             scale,
@@ -541,6 +544,16 @@ impl Engine {
         self.taken_png.as_deref()
     }
 
+    /// Has the map's snapshots go to the app as PNG files in `files`, which
+    /// the record names by their URLs, instead of as `data:` URLs, which are
+    /// at most 1 MiB. Files older than a day go then.
+    pub fn set_snapshot_files(&mut self, files: Option<SnapshotFiles>) {
+        if let Some(files) = &files {
+            files.clear_old();
+        }
+        self.snapshot_files = files;
+    }
+
     /// Starts the snapshot the app asked for, of the map as it shows, with
     /// the content's images decoded so far.
     fn start_snapshot(&mut self, decoded: &HashMap<String, PremultipliedImage>, events: &mut Vec<Event>) {
@@ -555,6 +568,7 @@ impl Engine {
             images: decoded,
             size,
             pixel_ratio,
+            files: self.snapshot_files.as_ref(),
         };
         match Snapshotter::start(&self.runtime, &scene) {
             Ok(snapshotter) => self.snapshotter = Some(snapshotter),
@@ -1417,5 +1431,24 @@ mod tests {
         let record = until(&mut map, &mut now, |record| record.camera.zoom == 11.0);
         assert_eq!(record.snapshot, None);
         assert!(map.snapshot_png().is_some());
+    }
+
+    #[test]
+    fn a_snapshot_goes_to_a_file_where_the_host_has_a_place_for_them() {
+        let dir = std::env::temp_dir().join("maplibre-rust-ui-tests").join(format!("files-{}", std::process::id()));
+        let mut map = engine();
+        map.set_snapshot_files(Some(SnapshotFiles { dir: dir.clone(), url: "app:/cache/maplibre".to_owned() }));
+        let mut now = 0.0;
+        until(&mut map, &mut now, |record| record.loaded);
+        map.command(
+            Command::parse(r#"{"command":"snapshot","width":16,"height":8}"#).unwrap_or_else(|e| panic!("{e}")),
+            now,
+        );
+        let snapshot =
+            until(&mut map, &mut now, |record| record.snapshot.is_some() || record.failure.is_some()).snapshot;
+        let url = snapshot.map(|snapshot| snapshot.url).unwrap_or_default();
+        let name = url.strip_prefix("app:/cache/maplibre/").unwrap_or_else(|| panic!("{url}"));
+        assert_eq!(std::fs::read(dir.join(name)).ok().as_deref(), map.snapshot_png());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

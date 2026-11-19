@@ -672,13 +672,14 @@ pub struct Record {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
-    /// The PNG as a `data:` URL of at most 1 MiB, which Exact's `image` shows
-    /// up to, made smaller when the snapshot is larger.
+    /// The PNG's file, when the host has a place for snapshots, else the PNG
+    /// as a `data:` URL of at most 1 MiB, which Exact's `image` shows up to,
+    /// made smaller when the snapshot is larger.
     pub url: String,
     /// Points.
     pub width: u32,
     pub height: u32,
-    /// The URL's image pixels in a point.
+    /// The image's pixels in a point.
     pub pixel_ratio: f32,
 }
 

@@ -333,8 +333,14 @@ and an app keeps what it needs of it on `snapshot`.
 
 | Field | What it is |
 |---|---|
-| `url` | The PNG as a `data:` URL of at most 1 MiB, which Exact's `image` shows, made smaller when the snapshot is larger |
+| `url` | The PNG's URL, which Exact's `image` shows, below |
 | `width`, `height` | Its size in points |
-| `pixelRatio` | The URL's image pixels in a point, less than the one asked for when it was made smaller |
+| `pixelRatio` | The image's pixels in a point, less than the one asked for when a `data:` URL was made smaller |
 
-A host in Rust also has the PNG at its full size, from `snapshot_png()`.
+In Exact on Apple's platforms and Android, the PNG is a file of its own in the session's
+`app:/cache`, such as `app:/cache/maplibre/snapshot-1795392000000-0.png`, at its full size. A file
+stays at least a day, and a map removes older ones when it starts. Elsewhere it is a `data:` URL of
+at most 1 MiB, which Exact's `image` shows up to, made smaller when the snapshot is larger.
+
+A host in Rust also has the PNG at its full size, from `snapshot_png()`, and has the map write files
+with `set_snapshot_files`.
