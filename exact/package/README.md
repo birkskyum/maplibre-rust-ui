@@ -3,10 +3,10 @@
 MapLibre maps in [Exact](https://github.com/expo/exact) apps, drawn by
 [mln-rs](https://github.com/louwers/mln-rs) on Exact's GPU canvas. It runs on macOS, iOS and Android.
 
-An app adds it with Exact's `add` verb, on Exact `d69b9614f` or later:
+An app adds it with Exact's `add` verb, on Exact `6758f7d0c` or later:
 
 ```sh
-bun exact.mjs add maplibre-exact@0.2.0
+bun exact.mjs add maplibre-exact@0.3.0
 ```
 
 Then it draws a map on a canvas:

@@ -1,6 +1,6 @@
 {
   "name": "maplibre-exact",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "MapLibre maps in Exact apps, drawn by mln-rs on Exact's GPU canvas",
   "keywords": ["maplibre", "map", "exact", "mln-rs"],
   "homepage": "https://birkskyum.github.io/maplibre-rust-ui/hosts/exact/",

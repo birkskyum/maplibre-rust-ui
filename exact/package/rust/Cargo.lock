@@ -498,9 +498,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "exact-gpu"
-version = "0.2.0"
+name = "exact-color"
+version = "0.1.0"
 dependencies = [
+ "exact-num",
+ "libm",
+]
+
+[[package]]
+name = "exact-gpu"
+version = "0.4.0"
+dependencies = [
+ "exact-color",
  "exact-gpu-reflect",
  "exact-plan",
  "objc2",
@@ -1540,7 +1549,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "maplibre-exact"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "exact-gpu",
  "maplibre-rust-ui",
@@ -1548,10 +1557,11 @@ dependencies = [
 
 [[package]]
 name = "maplibre-rust-ui"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcc95da4b98ae39cf5ccb20d9808e644ff5d597790943911978fa729da809a3e"
+checksum = "23d26e4d35775942bca328624a93c25fc924b86a5440cf03145b69c882f492f3"
 dependencies = [
+ "jni",
  "mln-rs-conversion",
  "mln-rs-feature",
  "mln-rs-gestures",
