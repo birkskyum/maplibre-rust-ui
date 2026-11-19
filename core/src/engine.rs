@@ -235,7 +235,10 @@ impl Engine {
         created.wait().map_err(fail)?;
         load_style(&map, &inputs).map_err(fail)?;
         let jump = CameraUpdate { camera: camera_options(&everything(&inputs.camera)), ..Default::default() };
-        let _jumped = map.update_camera(jump).map_err(fail)?;
+        // The map's snapshot below is its state after the commands that ran,
+        // so the jump runs first, else the first camera at rest is the map's
+        // default one, which the app never set.
+        let _jumped = map.update_camera(jump).map_err(fail)?.wait();
         let hosts = matches!(driver, Driver::CallerThread);
         // A host draws a shared image only once the session's GPU work on it
         // completed; on the host's own device, the queue's order suffices.
@@ -1189,6 +1192,13 @@ mod tests {
             assert!(Instant::now() < deadline, "the map never got there: {record:?}");
             std::thread::sleep(Duration::from_millis(2));
         }
+    }
+
+    #[test]
+    fn a_new_map_is_at_the_apps_camera_before_its_first_frame() {
+        let camera = engine().camera();
+        let off = (camera.center[0] - ZURICH[0]).abs() + (camera.center[1] - ZURICH[1]).abs();
+        assert!(off < 1e-9 && camera.zoom == 10.0, "{camera:?}");
     }
 
     #[test]
