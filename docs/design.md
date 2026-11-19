@@ -160,8 +160,8 @@ what is still to learn from it.
 
 ## What Exact would need to change
 
-Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `d69b9614f`.
-Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://github.com/expo/exact/issues/426) (2, 3), [#427](https://github.com/expo/exact/issues/427) (1) and [#428](https://github.com/expo/exact/issues/428) (4), [#743](https://github.com/expo/exact/issues/743) (11) and [#809](https://github.com/expo/exact/issues/809) (12).
+Found while building the prototype on exact2 `85c1b9c5`, which it has since moved to `10dea87d0`.
+Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://github.com/expo/exact/issues/426) (2, 3), [#427](https://github.com/expo/exact/issues/427) (1) and [#428](https://github.com/expo/exact/issues/428) (4), [#743](https://github.com/expo/exact/issues/743) (11), [#809](https://github.com/expo/exact/issues/809) (12) and [#839](https://github.com/expo/exact/issues/839) (13).
 
 1. **A package couldn't ship a GPU surface.** Surfaces were registered in the app's own `gpu/` crate,
    so each app wrote a three-line registry naming `maplibre_exact::mln::surface`. Fixed in
@@ -204,6 +204,12 @@ Filed: [#425](https://github.com/expo/exact/issues/425) (10), [#426](https://git
     stopped, as in #426 ([#809](https://github.com/expo/exact/issues/809)). Fixed in
     `d69b9614f`, which keeps the package's newer compatible versions and otherwise starts from the
     package's whole lock, so a freshly resolved lock builds too.
+13. **A GPU surface couldn't reach the app's `app:/data`, `app:/cache` or `app:/tmp`**, which Exact
+    gave only a package's Swift and Kotlin, so the cache database went where the core guessed, which
+    isn't an agent drive's store, and a snapshot reached the app only as a `data:` URL of at most
+    1 MiB ([#839](https://github.com/expo/exact/issues/839)). Fixed in `6758f7d0c`, whose
+    `Surface::storage` gives each canvas its session's directories before its first bind. The
+    database is in `app:/data` and the snapshots are files in `app:/cache`.
 
 ## What mln-rs would need
 
@@ -270,7 +276,9 @@ Five needs are met.
   wgpu's Vulkan backend, and mln-rs fetched over its ureq transport there before 0.0.12, where Apple
   uses NSURLSession. With the map as a package, the Pixel and the iPhone drew the style, flew to
   Zürich and showed a pin's callout on Exact `42e805cd3`, and the iPhone and the iOS 26.5
-  simulator again on `d69b9614f`.
+  simulator again on `d69b9614f`. On `10dea87d0`, a snapshot shown from `app:/cache` and central
+  Zürich downloaded as an offline region, on macOS, where the region was there again after a
+  relaunch and then deleted, the iOS 26.5 simulator, the iPhone and an Android 15 emulator.
 - A phone build needs a development profile for the app's bundle id that includes the phone. Exact
   uses one that is installed and doesn't create it, so the first time it is made with Xcode's
   automatic signing (`xcodebuild -allowProvisioningUpdates` on any app target with the bundle id).
@@ -280,8 +288,7 @@ Five needs are met.
 - The web, Linux and Windows builds. The web is blocked on mln-rs's worker model.
 - The rest of the table above.
 - Accessibility of the map itself beyond the canvas's `aria-label`.
-- Several maps on one screen each have a runtime of their own, and in Exact the record's name,
-  `maplibre`, belongs to the first map.
+- In Exact, the record's name, `maplibre`, belongs to the first of several maps on one screen.
 - Slint, egui, Bevy and GPUI beyond macOS, Native Shell on Android, Whisker on macOS, and Whisker on an
   Android phone.
 - iced, which is on an older wgpu, so its host needs mln-rs's exported textures, as GPUI's has.

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../../exact/scripts/app.schema.json",
+  "$schema": ".exact/checkout/scripts/app.schema.json",
   "name": "Hello Map",
   "short_name": "Hello Map",
   "id": "org.maplibre.exact.hellomap",

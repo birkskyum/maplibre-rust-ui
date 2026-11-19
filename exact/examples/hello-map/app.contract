@@ -4,8 +4,9 @@
 // over it, a marker the map holds at the place; tapping a cluster zooms in
 // until it splits. A long press drops a pin there. The compass turns with the
 // map and puts north back up, and the button under it shows where the person
-// is. The buttons fly to Zürich, show the places, and turn the globe and the
-// relief on and off.
+// is. The buttons fly to Zürich, show the places, turn the globe and the
+// relief on and off, take a snapshot of the map, which shows in a corner, and
+// keep central Zürich offline, or delete it again.
 use getCurrentPosition, geolocationStatus, GeolocationPosition, GeolocationStatus from "@exact/geolocation"
 
 shape Content
@@ -30,12 +31,25 @@ shape MapClick
   lngLat: LngLat
   features: MapFeature[]
 
+shape MapSnapshot
+  url: string
+  width: number
+  height: number
+
+shape MapRegion
+  name: string
+  state: string
+  completedResources: number
+  requiredResources: number
+
 shape MapRecord
   zoom: number
   loaded: bool
   click: option<MapClick>
   contextmenu: option<MapClick>
   attribution: string
+  snapshot: option<MapSnapshot>
+  regions: MapRegion[]
 
 routes nav
   home "/"
@@ -52,6 +66,10 @@ component HelloMap
   derive droppedLabel = match map.contextmenu { case some(c) => `Dropped pin ${formatNumber(c.lngLat.lat, "decimal")}, ${formatNumber(c.lngLat.lng, "decimal")}`, case none => "" }
   state globe = false
   state relief = false
+  // The last snapshot, which the record has only until the map's next event.
+  state shot = ""
+  derive saved = map.regions.length > 0
+  derive offline = match first(map.regions) { case some(r) => `${r.name} offline: ${r.state}, ${r.completedResources} of ${r.requiredResources}`, case none => "" }
   resource location = geolocationStatus() as shape GeolocationStatus else empty()
   mutation located as shape GeolocationPosition then arrived
   derive here = match located { case some(p) => [p.coords.longitude, p.coords.latitude], case none => [] }
@@ -74,11 +92,20 @@ component HelloMap
         postMessage(`{"command":"flyTo","center":[${p.coords.longitude},${p.coords.latitude}],"zoom":15}`, "maplibre")
       case none
         globe = globe
+  action takeSnapshot
+    postMessage(`{"command":"snapshot","width":240,"height":160}`, "maplibre")
+  action toggleOffline
+    if saved
+      postMessage(`{"command":"deleteRegion","name":"Zürich"}`, "maplibre")
+    if not saved
+      postMessage(`{"command":"downloadRegion","name":"Zürich","bounds":[[8.52,47.36],[8.56,47.39]],"minZoom":10,"maxZoom":14}`, "maplibre")
   action resetNorth
     postMessage(`{"command":"easeTo","bearing":0,"pitch":0}`, "maplibre")
   action onMap(event: string)
     if event == "click" and expand != ""
       postMessage(expand, "maplibre")
+    if event == "snapshot"
+      shot = match map.snapshot { case some(s) => s.url, case none => shot }
   view
     main testId="root" navigationKey=`${top(nav).id}` navigationBack="back" width="100%" height="100%"
       for e in stack(nav) key=e.id
@@ -89,7 +116,7 @@ component HelloMap
             button "Places" press=showPlaces testId="places"
             button "Globe" press=toggleGlobe aria-pressed=globe testId="globe"
             button "Relief" press=toggleRelief aria-pressed=relief testId="relief"
-          canvas surface=maplibre(style="https://tiles.openfreemap.org/styles/liberty", longitude=10.45, latitude=51.16, zoom=4, bearing=0, pitch=0, content=content.json, options=`{"minZoom":3,"maxZoom":18}`, events="click contextmenu") message=onMap position="relative" flex=1 min-height=0 width="100%" touch-action="none" aria-label="Map" testId="map"
+          canvas surface=maplibre(style="https://tiles.openfreemap.org/styles/liberty", longitude=10.45, latitude=51.16, zoom=4, bearing=0, pitch=0, content=content.json, options=`{"minZoom":3,"maxZoom":18}`, events="click contextmenu snapshot") message=onMap position="relative" flex=1 min-height=0 width="100%" touch-action="none" aria-label="Map" testId="map"
             button press=resetNorth aria-label="Reset bearing to north" testId="compass" position="absolute" top=10 right=10 width=36 height=36 padding=0 border-radius=18 border-width=1 border-style="solid" border-color="-exact-separator" background-color="-exact-secondary-grouped-background" display="flex" align-items="center" justify-content="center"
               image "assets/compass.png" width=24 height=24 aria-hidden=true
             if location.available and location.state != "denied"
@@ -105,6 +132,14 @@ component HelloMap
               column position="absolute" display="flex" flex-direction="column" align-items="center" gap=4 padding="8px 12px" border-radius=10 background-color="-exact-secondary-grouped-background" border-width=1 border-style="solid" border-color="-exact-separator" testId="callout"
                 text chosenName font-weight=600 testId="callout-name"
                 button "Fly here" press=flyChosen testId="fly-chosen"
+            if shot != ""
+              image shot position="absolute" left=10 bottom=28 width=120 height=80 border-radius=6 border-width=2 border-style="solid" border-color="#ffffff" aria-label="Snapshot of the map" testId="shot"
             if map.attribution != ""
               text map.attribution position="absolute" right=0 bottom=0 font-size=11 padding="2px 6px" color="#333333" background-color="#ffffffcc" testId="attribution"
-          text (chosenId == "" ? "Tap a place" : chosenName) padding=8 testId="chosen"
+          row align-items="center" gap=8 padding=8
+            column flex=1 min-width=0
+              text (chosenId == "" ? "Tap a place" : chosenName) testId="chosen"
+              if offline != ""
+                text offline font-size=12 testId="regions"
+            button "Snapshot" press=takeSnapshot testId="snapshot"
+            button "Offline" press=toggleOffline aria-pressed=saved testId="offline"

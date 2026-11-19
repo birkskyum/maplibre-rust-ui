@@ -12,6 +12,7 @@ mod input;
 mod markers;
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use exact_gpu::{
     AssetChanges, AssetError, ChildrenMode, Frame, InputEvent, Placement, Surface, SurfaceError, Value,
@@ -23,7 +24,7 @@ use maplibre_rust_ui::runtime::{Device, Driver, RenderTarget};
 use maplibre_rust_ui::texture::MapTexture;
 use maplibre_rust_ui::util::image::PremultipliedImage;
 use maplibre_rust_ui::util::size::Size;
-use maplibre_rust_ui::{Engine, Viewport};
+use maplibre_rust_ui::{Engine, SnapshotFiles, Viewport};
 
 use crate::protocol::{self, Command, Event, Inputs, Record};
 
@@ -53,6 +54,8 @@ pub struct MapSurface {
     decoded: HashMap<String, PremultipliedImage>,
     /// The canvas's children, some of which the content places on the map.
     children: markers::Children,
+    /// Where the map's snapshots go, in the session's `app:/cache`.
+    snapshot_files: Option<SnapshotFiles>,
 }
 
 impl MapSurface {
@@ -67,6 +70,16 @@ impl MapSurface {
 impl Surface for MapSurface {
     fn arguments(&self) -> Vec<(&'static str, Value)> {
         protocol::argument_defaults()
+    }
+
+    /// The session's directories, before the first map: the maps' database
+    /// goes in `app:/data`, since its offline regions are downloads the
+    /// person asked for, and snapshots in `app:/cache`, where `image` shows
+    /// them. The maps share one database, so the first map's session has it.
+    fn storage(&mut self, data: &Path, cache: &Path, _temporary: &Path) {
+        maplibre_rust_ui::set_cache_path(Some(data.join("maplibre").join("maplibre.db")));
+        self.snapshot_files =
+            Some(SnapshotFiles { dir: cache.join("maplibre"), url: "app:/cache/maplibre".to_owned() });
     }
 
     fn bind(&mut self, inputs: &[Value], _at_ms: Option<f64>) -> Result<(), SurfaceError> {
@@ -96,7 +109,8 @@ impl Surface for MapSurface {
             ));
             let target = RenderTarget::Borrowed { size: viewport.size, ring: texture.ring(), device: shared };
             match Engine::new(viewport, frame.now_ms, inputs.clone(), target, Driver::CallerThread) {
-                Ok(engine) => {
+                Ok(mut engine) => {
+                    engine.set_snapshot_files(self.snapshot_files.clone());
                     self.engine = Some(engine);
                     self.texture = Some(texture);
                 }

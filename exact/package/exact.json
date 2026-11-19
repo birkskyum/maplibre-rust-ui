@@ -5,7 +5,7 @@
   "names": [],
   "gpu": {
     "crate": "rust",
-    "exactGpu": "0.2",
+    "exactGpu": "0.4",
     "surfaces": { "maplibre": { "arity": 9, "factory": "maplibre_exact::mln::surface" } }
   }
 }

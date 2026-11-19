@@ -34,7 +34,7 @@ canvas surface=maplibre(style="https://tiles.openfreemap.org/styles/liberty", lo
   whether everything in view has loaded, the last click and context menu with the content's features
   under them (a cluster's with the zoom it splits at), the last failure, the style's attribution as
   text for the app to show on the map, the offline regions with their progress, and a snapshot the map
-  just took, as a `data:` URL that `image` shows. The app reads it as a shape of its own.
+  just took, as a file in `app:/cache` that `image` shows. The app reads it as a shape of its own.
 - Commands go in as JSON (`jumpTo`, `easeTo`, `flyTo`, `fitBounds`, `setStyle`, `snapshot`, and
   `downloadRegion` and the other commands of the offline regions), such as
   ``postMessage(`{"command":"flyTo","center":[8.54,47.37],"zoom":14}`, "maplibre")``, with GL JS's
@@ -50,19 +50,21 @@ uses all of it.
 
 The map is an Exact package, [`exact/package`](https://github.com/birkskyum/maplibre-rust-ui/tree/main/exact/package),
 whose `exact.json` declares the `maplibre` surface. It is on npm as
-[`maplibre-exact`](https://www.npmjs.com/package/maplibre-exact). An app on Exact `d69b9614f` or later
+[`maplibre-exact`](https://www.npmjs.com/package/maplibre-exact). An app on Exact `6758f7d0c` or later
 adds it and places the canvas, with no Rust of its own:
 
 ```sh
-bun exact.mjs add maplibre-exact@0.2.0
+bun exact.mjs add maplibre-exact@0.3.0
 ```
 
 Exact takes a package from npm by its name and version, and one in a checkout by its folder
 (`bun exact.mjs add ../maplibre-rust-ui/exact/package`).
 
 Exact builds the package's crate into a GPU module of its own. The crate builds on Exact's
-`exact-gpu` 0.2 and takes `maplibre-rust-ui` from crates.io, and on Android gives mln-rs the app's
-Java VM and context, which it fetches the style and tiles through.
+`exact-gpu` 0.4 and takes `maplibre-rust-ui` from crates.io, and on Android gives mln-rs the app's
+Java VM and context, which it fetches the style and tiles through. Exact gives the surface the
+session's directories, and the maps keep their cache database, with the offline regions, in
+`app:/data` and write their snapshots to `app:/cache`.
 
 ## Markers
 
@@ -84,16 +86,17 @@ canvas surface=maplibre(…) testId="map"
 
 ## Running the example
 
-Clone Exact next to this repository, on the commit this was last built on, `d69b9614f`:
+Clone Exact next to this repository, on the commit this was last built on, `10dea87d0`:
 
 ```sh
-git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact d69b9614f
+git clone https://github.com/expo/exact && git -C exact checkout -b maplibre-exact 10dea87d0
 bun exact/scripts/exact.mjs setup
 ```
 
 Then, from `maplibre-rust-ui/exact/examples/hello-map`:
 
 ```sh
+bun exact.mjs --help               # links the Exact checkout as .exact/checkout
 bun install --frozen-lockfile      # the map's package and Exact's geolocation module
 bun exact.mjs mac --run
 bun exact.mjs ios --run            # an iOS Simulator; --device on a connected iPhone, with a development profile for its bundle id
