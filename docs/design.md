@@ -116,12 +116,15 @@ click, two-finger pinch and rotate, the arrow keys and `+`/`-`, and moves the ma
 deltas maplibre-native-ffi's C API takes.
 
 What a map loads stays in a cache database on disk, which every map of the app shares, so a map loads
-its style and tiles from there the next time, and without a network. It is in the app's cache
-directory, as MapLibre's SDKs keep theirs: `Library/Caches` on Apple's platforms, which is the app's
-own in a sandbox, the context's cache directory on Android, which `android_init` asks for, and the
-user's cache directory on Linux and Windows, each in a folder of the app's. A host or an app moves it
-with `set_cache_path` before its first map, or keeps it in memory. A database the runtime can't open
-leaves the cache in memory, and the app hears why as a failure. The browser caches the requests itself.
+its style and tiles from there the next time, and without a network. The offline regions are in it
+too, downloads the app's user asked for, so it is in the app's data directory, as MapLibre Native
+keeps its own, where the system doesn't clear it as it clears caches: `Library/Application Support`
+on Apple's platforms, which is the app's own in a sandbox, the context's files directory on Android,
+which `android_init` asks for, and the user's data directory on Linux and Windows, each in a folder
+of the app's. In Exact it is in the session's `app:/data`, which Exact gives the surface. A host or
+an app moves it with `set_cache_path` before its first map, or keeps it in memory. A database the
+runtime can't open leaves the cache in memory, and the app hears why as a failure. The browser caches
+the requests itself.
 
 The app's maps share one mln-rs runtime, as the runtime is made to hold them, so the database has one
 connection. Runtimes of their own would each open it, and one connection could then wait without end
