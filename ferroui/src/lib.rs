@@ -620,11 +620,18 @@ struct MapFrame {
 }
 
 /// The bytes a row of the IOSurface at `surface` takes, and all its bytes.
+#[cfg(target_vendor = "apple")]
 fn surface_layout(surface: u64) -> Option<(u64, u64)> {
     let surface = std::ptr::NonNull::new(surface as usize as *mut objc2_io_surface::IOSurfaceRef)?;
     // SAFETY: the frame that names the surface holds it while it lives.
     let surface = unsafe { surface.as_ref() };
     Some((surface.bytes_per_row() as u64, surface.alloc_size() as u64))
+}
+
+/// No platform but Apple's has IOSurfaces.
+#[cfg(not(target_vendor = "apple"))]
+fn surface_layout(_surface: u64) -> Option<(u64, u64)> {
+    None
 }
 
 fn modifiers(keys: KeyModifiers) -> Modifiers {

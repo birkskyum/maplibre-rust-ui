@@ -19,8 +19,11 @@ renderer. With another one the map doesn't show, posts an `error` event, and `er
 
 ## Using it
 
-It builds on FerroUI 0.5.0 from crates.io. It isn't on crates.io itself yet, so an app takes it from
-a checkout of this repository, and `cargo doc` in `ferroui` builds its API.
+```sh
+cargo add maplibre-ferroui
+```
+
+It builds on FerroUI 0.5, and [its API](https://docs.rs/maplibre-ferroui) is on docs.rs.
 
 A `FerroMap` is a control that fills the room its layout gives it:
 

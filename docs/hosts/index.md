@@ -13,7 +13,7 @@ without the hosts knowing.
 | [egui](egui.md) | `maplibre-egui` | [crates.io](https://crates.io/crates/maplibre-egui) | macOS | A texture on egui's wgpu device, which egui shows as an image |
 | [Bevy](bevy.md) | `maplibre-bevy` | [crates.io](https://crates.io/crates/maplibre-bevy) | macOS | A texture on Bevy's wgpu device, which a UI node shows |
 | [GPUI](gpui.md) | `maplibre-gpui` | a checkout | macOS | A ring of IOSurfaces, which GPUI's Metal renderer samples |
-| [FerroUI](ferroui.md) | `maplibre-ferroui` | a checkout | macOS | A ring of IOSurfaces, which FerroUI's compositor samples |
+| [FerroUI](ferroui.md) | `maplibre-ferroui` | [crates.io](https://crates.io/crates/maplibre-ferroui) | macOS | A ring of IOSurfaces, which FerroUI's compositor samples |
 | [Native Shell](nsh.md) | `maplibre-nsh` | [crates.io](https://crates.io/crates/maplibre-nsh) | macOS, iOS | The `CAMetalLayer` of a native view of its own |
 | [Whisker](whisker.md) | `maplibre-whisker` | [crates.io](https://crates.io/crates/maplibre-whisker) | iOS, Android | The `CAMetalLayer` of a Swift view, or a Kotlin `SurfaceView` |
 | [Exact](exact.md) | `maplibre-exact` | [npm](https://www.npmjs.com/package/maplibre-exact) | macOS, iOS, Android | A texture on Exact's GPU canvas device, drawn into the canvas |

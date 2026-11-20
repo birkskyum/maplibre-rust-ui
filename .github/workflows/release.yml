@@ -47,7 +47,7 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          for crate in core slint egui bevy nsh whisker; do
+          for crate in core slint egui bevy nsh whisker ferroui; do
             name=$(grep -m1 '^name = ' "$crate/Cargo.toml" | cut -d'"' -f2)
             version=$(grep -m1 '^version = ' "$crate/Cargo.toml" | cut -d'"' -f2)
             if curl -sf -A "maplibre-rust-ui release" "https://crates.io/api/v1/crates/$name/$version" > /dev/null; then
