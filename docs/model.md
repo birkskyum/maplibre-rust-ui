@@ -9,7 +9,7 @@ The hosts take it in their own terms.
 
 | Host | Declaration | Commands | Events |
 |---|---|---|---|
-| Slint, egui, Bevy, GPUI | An `Inputs` in Rust | A `Command` | `Event`s, with the record |
+| Slint, egui, Bevy, GPUI, FerroUI | An `Inputs` in Rust | A `Command` | `Event`s, with the record |
 | Native Shell | The component's props, as JSON | `command(name, args)` on the element's ref | Native events, with the record |
 | Whisker | The `Map` element's props, as JSON | A `MapHandle` | `on_load`, `on_map_click` and the others, with the record |
 | Exact | The canvas's arguments | `postMessage` to the canvas | Messages to the canvas's `message=` action |
@@ -101,7 +101,7 @@ JS's `addImage` takes it.
 }
 ```
 
-Exact loads each image from the app's `assets/` folder itself. In Slint, egui and GPUI the app hands
+Exact loads each image from the app's `assets/` folder itself. In Slint, egui, GPUI and FerroUI the app hands
 the map each image's file with `add_image(src, bytes)`. Native Shell, Whisker and Bevy don't take
 images yet.
 
@@ -139,6 +139,7 @@ How far a marker follows the map depends on what the host's framework can do wit
 | egui | `map.marker(ctx, name, …)` | No | No |
 | Bevy | `MapMarker { id }` | No | No |
 | GPUI | `at_marker` with a place's `name` | No | No |
+| FerroUI | `at_marker` with a place's `name` | Yes | No, it stays unsquashed |
 | Native Shell | `MarkerPlace::of(data, name)` | No | No |
 
 ### Root properties and state

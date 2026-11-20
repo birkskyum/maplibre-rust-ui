@@ -11,8 +11,8 @@ cargo add maplibre-slint    # or maplibre-egui, maplibre-bevy, maplibre-nsh, map
 
 They build with Rust 1.98 or later, as mln-rs does. The Exact host is the npm package
 `maplibre-exact`, which an Exact app adds with `bun exact.mjs add maplibre-exact@0.3.0`. The GPUI host
-isn't published, since it builds on a changed GPUI, so an app takes it from a checkout of this
-repository.
+isn't published, since it builds on a changed GPUI, and neither is the FerroUI host yet, so an app
+takes them from a checkout of this repository.
 
 ## The checkouts
 
@@ -42,6 +42,7 @@ the map, flies to Zürich, taps Zürich HB and fits the places in view, and save
 | [egui](hosts/egui.md) | `cargo run -p hello-map-egui` | `cargo test -p hello-map-egui -- --ignored` |
 | [Bevy](hosts/bevy.md) | `cargo run -p hello-map-bevy` | `HELLO_MAP_SNAPSHOTS=/tmp/hello-map cargo run -p hello-map-bevy` |
 | [GPUI](hosts/gpui.md) | `cargo run -p hello-map-gpui` | `cargo test -p hello-map-gpui -- --ignored` |
+| [FerroUI](hosts/ferroui.md) | `cargo run -p hello-map-ferroui` | `cargo test -p hello-map-ferroui --test walk -- --ignored` |
 | [Native Shell](hosts/nsh.md) | `cargo run -p hello-map-nsh` | `HELLO_MAP_SNAPSHOTS=/tmp/hello-map cargo run -p hello-map-nsh` |
 | [Whisker](hosts/whisker.md) | `whisker run ios`, `whisker run android` | `HELLO_MAP_WALK=1` in the app's environment |
 | [Exact](hosts/exact.md) | `bun exact.mjs mac --run` | |

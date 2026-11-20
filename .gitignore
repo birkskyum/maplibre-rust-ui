@@ -12,5 +12,6 @@
 /egui/target/
 /bevy/target/
 /gpui/target/
+/ferroui/target/
 /site/
 /.cache/

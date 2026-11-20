@@ -156,7 +156,7 @@ what is still to learn from it.
 | Capture a map image | A snapshotter | A `snapshot` command, which renders the map's style, content and camera offscreen and gives the PNG as a `data:` URL in the record, and in full to a host in Rust |
 | Download maps for offline use | Offline downloads on every platform but the web | Offline regions by name, downloaded, paused, refreshed and deleted with commands, and listed with their progress in the record. What maps load also stays in a cache database on disk |
 | Rewrite or serve map requests | Requests the app rewrites or answers itself | Rules that rewrite a request's URL, add query parameters and send headers, by URL prefix and resource type. The app doesn't answer requests itself yet |
-| Present outside Compose UI | The same map state shown in CarPlay, Android Auto, UIKit, SwiftUI or React | What the hosts do, one model shown in Slint, egui, Bevy, GPUI, Native Shell, Whisker and Exact |
+| Present outside Compose UI | The same map state shown in CarPlay, Android Auto, UIKit, SwiftUI or React | What the hosts do, one model shown in Slint, egui, Bevy, GPUI, FerroUI, Native Shell, Whisker and Exact |
 
 ## What Exact would need to change
 
@@ -259,13 +259,14 @@ Five needs are met.
 
 ## Where it runs
 
-- Slint, egui, Bevy, GPUI and Native Shell on macOS, and Whisker on the iOS simulator (iOS 26.5): the style, the
+- Slint, egui, Bevy, GPUI, FerroUI and Native Shell on macOS, and Whisker on the iOS simulator (iOS 26.5): the style, the
   content's places, `flyTo`, a tap naming a place and `fitBounds`, each in a scripted walk. Native
   Shell on the iOS simulator too, without the tap. Whisker on an Android 15 emulator, with the
   emulator's own touches: the buttons, a tap naming a place and a drag, with pauses past the
-  surface's ten seconds between them. The station's callout in Slint, egui, Bevy, GPUI, Whisker and
+  surface's ten seconds between them. The station's callout in Slint, egui, Bevy, GPUI, FerroUI, Whisker and
   Native Shell (on iOS), and on Whisker's iOS and Android also turned and tilted with the map. GPUI's
   walk runs in its headless context, whose Metal renderer draws the map's IOSurfaces into its images.
+  FerroUI's walk runs in a window off every screen, and its tap and wheel go through FerroUI's input.
 
 - Exact on macOS, iOS on an iPhone 17 Pro (iOS 27.2) and Android on a Pixel 9a, from the same surface: the
   style, the content's route and pins, `flyTo`, `fitBounds`, a tap selecting a pin, and the
@@ -289,7 +290,7 @@ Five needs are met.
 - The rest of the table above.
 - Accessibility of the map itself beyond the canvas's `aria-label`.
 - In Exact, the record's name, `maplibre`, belongs to the first of several maps on one screen.
-- Slint, egui, Bevy and GPUI beyond macOS, Native Shell on Android, Whisker on macOS, and Whisker on an
+- Slint, egui, Bevy, GPUI and FerroUI beyond macOS, Native Shell on Android, Whisker on macOS, and Whisker on an
   Android phone.
 - iced, which is on an older wgpu, so its host needs mln-rs's exported textures, as GPUI's has.
 - MapLibre Native through maplibre-native-ffi, and GL JS on the web, as engines behind `Component`.

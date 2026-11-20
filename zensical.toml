@@ -16,6 +16,7 @@ nav = [
     { "egui" = "hosts/egui.md" },
     { "Bevy" = "hosts/bevy.md" },
     { "GPUI" = "hosts/gpui.md" },
+    { "FerroUI" = "hosts/ferroui.md" },
     { "Native Shell" = "hosts/nsh.md" },
     { "Whisker" = "hosts/whisker.md" },
     { "Exact" = "hosts/exact.md" },

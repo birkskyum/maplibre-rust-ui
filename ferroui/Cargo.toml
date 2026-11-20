@@ -1,0 +1,23 @@
+[package]
+name = "maplibre-ferroui"
+version = "0.3.0"
+edition = "2024"
+license = "MIT"
+description = "MapLibre maps in FerroUI apps, drawn by mln-rs into IOSurfaces that FerroUI's compositor draws as they are"
+repository = "https://github.com/birkskyum/maplibre-rust-ui"
+homepage = "https://birkskyum.github.io/maplibre-rust-ui/hosts/ferroui/"
+documentation = "https://birkskyum.github.io/maplibre-rust-ui/hosts/ferroui/"
+readme = "README.md"
+keywords = ["maplibre", "map", "ferroui", "gis", "gui"]
+categories = ["gui", "science::geo"]
+
+[workspace]
+members = ["examples/hello-map"]
+
+[dependencies]
+ferroui-base = "0.5.0"
+ferroui-controls = "0.5.0"
+maplibre-rust-ui = { path = "../core", version = "0.3.0", features = ["metal"] }
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+objc2-io-surface = { version = "0.3.2", default-features = false, features = ["std", "IOSurfaceRef"] }

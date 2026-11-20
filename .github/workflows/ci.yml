@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crate: [core, slint, egui, bevy, nsh, whisker]
+        crate: [core, slint, egui, bevy, nsh, whisker, ferroui]
     steps:
       - uses: actions/checkout@v7
         with:

@@ -39,6 +39,12 @@ same app, Hello Map, a map of a few places in Zürich with a callout over the st
 
     ![Hello Map in GPUI](images/gpui.webp)
 
+-   **[FerroUI](hosts/ferroui.md)**, from IOSurfaces FerroUI's compositor samples, on macOS
+
+    ---
+
+    ![Hello Map in FerroUI](images/ferroui.webp)
+
 -   **[Native Shell](hosts/nsh.md)**, in a native view of its own, on macOS and iOS
 
     ---
