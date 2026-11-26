@@ -22,7 +22,7 @@ tests on its own:
 
 ```sh
 git clone https://github.com/birkskyum/maplibre-rust-ui
-git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-rust-ui v0.0.18
+git clone https://github.com/maplibre/mln-rs && git -C mln-rs checkout -b maplibre-rust-ui v0.0.18
 cd maplibre-rust-ui/core && cargo test
 ```
 

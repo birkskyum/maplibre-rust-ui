@@ -32,7 +32,7 @@ jobs:
           path: maplibre-rust-ui
       - uses: actions/checkout@v7
         with:
-          repository: louwers/mln-rs
+          repository: maplibre/mln-rs
           ref: ${{ env.MLN_RS }}
           path: mln-rs
       - uses: Swatinem/rust-cache@v2
@@ -57,7 +57,7 @@ jobs:
           path: maplibre-rust-ui
       - uses: actions/checkout@v7
         with:
-          repository: louwers/mln-rs
+          repository: maplibre/mln-rs
           ref: ${{ env.MLN_RS }}
           path: mln-rs
       - uses: actions/checkout@v7

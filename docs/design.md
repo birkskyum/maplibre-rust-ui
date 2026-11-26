@@ -232,19 +232,19 @@ Five needs are met.
   and context, which the core's `component::android_init` passes on. Whisker's host does at its
   first view.
 - mln-rs links Apple's own SQLite on Apple's platforms, as Exact's own crates do
-  ([louwers/mln-rs#344](https://github.com/louwers/mln-rs/pull/344)). The SQLite it built in probed
+  ([maplibre/mln-rs#344](https://github.com/maplibre/mln-rs/pull/344)). The SQLite it built in probed
   filesystem types with `statfs`, which Apple counts as a disk-space API whose use an app's privacy
   manifest must give a reason for, and none of Apple's reasons fits, so Exact's iOS build refused the
   app.
 - A surface keeps presenting on Vulkan after the map rests
-  ([louwers/mln-rs#343](https://github.com/louwers/mln-rs/pull/343)). After ten seconds without a
+  ([maplibre/mln-rs#343](https://github.com/maplibre/mln-rs/pull/343)). After ten seconds without a
   frame the WebGPU surface asks to be reconfigured, and with its size unchanged it dropped the frame's
   acquired texture unpresented. Metal takes such a drawable back and Vulkan doesn't, so on Android
   each rest of the map cost the swapchain an image, until none was left and the map stopped drawing
   ("dequeueBuffer timed out").
 - The gesture recognizer's camera trait and events are public again, and its options have switches
   for rotating, pitching and scroll zoom
-  ([louwers/mln-rs#350](https://github.com/louwers/mln-rs/pull/350)). A host on the runtime has the
+  ([maplibre/mln-rs#350](https://github.com/maplibre/mln-rs/pull/350)). A host on the runtime has the
   map on the runtime's thread, so its camera reads the map's snapshot and sends the recognizer's
   deltas as commands, which takes implementing `GestureCamera` outside mln-rs.
 

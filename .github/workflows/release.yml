@@ -39,7 +39,7 @@ jobs:
           path: maplibre-rust-ui
       - uses: actions/checkout@v7
         with:
-          repository: louwers/mln-rs
+          repository: maplibre/mln-rs
           ref: ${{ env.MLN_RS }}
           path: mln-rs
       - name: Publish
