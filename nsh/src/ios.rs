@@ -7,7 +7,7 @@ use std::rc::{Rc, Weak};
 
 use maplibre_rust_ui::Phase;
 use maplibre_rust_ui::component::Press;
-use maplibre_rust_ui::gestures::{Button, Modifiers};
+use maplibre_rust_ui::gestures::Modes;
 use nsh_core::JsonValue;
 use nsh_platform_ios::{ComponentContext, Components, NativeComponent};
 use objc2::rc::Retained;
@@ -162,15 +162,7 @@ impl MapView {
                 self.ivars().touches.borrow_mut().remove(&key);
             }
             let at = touch.locationInView(Some(self));
-            let press = Press {
-                id,
-                phase,
-                x: at.x,
-                y: at.y,
-                button: Button::Primary,
-                touch: true,
-                modifiers: Modifiers::default(),
-            };
+            let press = Press { id, phase, x: at.x, y: at.y, touch: true, secondary: false, modes: Modes::default() };
             shared.press(&press);
         }
     }

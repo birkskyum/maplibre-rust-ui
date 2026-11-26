@@ -12,11 +12,11 @@ use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr::NonNull;
 
 use maplibre_rust_ui::component::{Component, Press};
-use maplibre_rust_ui::gestures::{Button, Input, Modifiers, PinchPhase, WheelDelta};
+use maplibre_rust_ui::geo::ScreenCoordinate;
+use maplibre_rust_ui::gestures::{Input, Modes, PinchPhase};
 use maplibre_rust_ui::placement::Placement;
 use maplibre_rust_ui::runtime::{Driver, RenderTarget};
-use maplibre_rust_ui::util::geo::ScreenCoordinate;
-use maplibre_rust_ui::util::size::Size;
+use maplibre_rust_ui::style::size::Size;
 use maplibre_rust_ui::{Phase, Viewport};
 use serde_json::{Value as Json, json};
 
@@ -152,8 +152,12 @@ unsafe fn text<'a>(text: *const c_char) -> &'a str {
     unsafe { CStr::from_ptr(text) }.to_str().unwrap_or_default()
 }
 
-fn modifiers(bits: u32) -> Modifiers {
-    Modifiers { shift: bits & 1 != 0, ctrl: bits & 2 != 0, alt: bits & 4 != 0, meta: bits & 8 != 0 }
+/// What the held keys of `bits` (1 shift, 2 control) make a mouse drag do:
+/// Control rotates and tilts, and Shift zooms to a box, and makes a double
+/// click zoom out.
+fn key_modes(bits: u32) -> Modes {
+    let shift = bits & 1 != 0;
+    Modes { rotate: bits & 2 != 0, box_zoom: shift, zoom_out: shift }
 }
 
 /// A map that renders into `layer`, a `CAMetalLayer`, once it has a size
@@ -228,6 +232,8 @@ pub extern "C" fn maplibre_whisker_resize(map: u64, width: f64, height: f64, sca
 /// A pointer on the view, at `x`, `y` points from its top-left corner:
 /// `phase` 0 down, 1 move, 2 up, 3 cancel; `button` 0 the primary, 1 the
 /// middle, 2 the secondary; `modifiers` 1 shift, 2 control, 4 alt, 8 meta.
+/// The primary button drags, the secondary one rotates and tilts, and the
+/// middle one means nothing to the map.
 #[unsafe(no_mangle)]
 #[allow(clippy::too_many_arguments)]
 pub extern "C" fn maplibre_whisker_pointer(
@@ -240,27 +246,36 @@ pub extern "C" fn maplibre_whisker_pointer(
     touch: bool,
     modifiers_bits: u32,
 ) {
+    if button == 1 {
+        return;
+    }
     let phase = match phase {
         0 => Phase::Down,
         1 => Phase::Move,
         2 => Phase::Up,
         _ => Phase::Cancel,
     };
-    let button = match button {
-        1 => Button::Middle,
-        2 => Button::Secondary,
-        _ => Button::Primary,
-    };
-    let press = Press { id, phase, x, y, button, touch, modifiers: modifiers(modifiers_bits) };
+    let secondary = button == 2;
+    let modes = if touch { Modes::default() } else { Modes { rotate: secondary, ..key_modes(modifiers_bits) } };
+    let press = Press { id, phase, x, y, touch, secondary, modes };
     hand(map, |component| component.pointer(&press));
 }
 
 /// A wheel or trackpad scroll at `x`, `y`, `delta` by the web's sign (down
 /// is positive), in points when `precise`, in a wheel's notches otherwise.
+/// Up zooms in: a notch a third of a level, eased, and a point 1/300 level.
 #[unsafe(no_mangle)]
 pub extern "C" fn maplibre_whisker_wheel(map: u64, x: f64, y: f64, delta: f64, precise: bool, modifiers_bits: u32) {
-    let delta = if precise { WheelDelta::Pixels(delta) } else { WheelDelta::Notches(delta) };
-    let input = Input::Wheel { position: ScreenCoordinate::new(x, y), delta, modifiers: modifiers(modifiers_bits) };
+    let _ = modifiers_bits;
+    let zoom = if precise { -delta / 300.0 } else { -delta / 3.0 };
+    let input = Input::Delta {
+        position: ScreenCoordinate::new(x, y),
+        discrete: !precise,
+        pan: ScreenCoordinate::new(0.0, 0.0),
+        zoom,
+        bearing: 0.0,
+        pitch: 0.0,
+    };
     hand(map, |component| component.gesture(input));
 }
 

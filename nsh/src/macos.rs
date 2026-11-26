@@ -6,8 +6,8 @@ use std::rc::{Rc, Weak};
 
 use maplibre_rust_ui::Phase;
 use maplibre_rust_ui::component::Press;
-use maplibre_rust_ui::gestures::{Button, Input, Modifiers, PinchPhase, WheelDelta};
-use maplibre_rust_ui::util::geo::ScreenCoordinate;
+use maplibre_rust_ui::geo::ScreenCoordinate;
+use maplibre_rust_ui::gestures::{Input, Modes, PinchPhase};
 use nsh_core::JsonValue;
 use nsh_platform_macos::{ComponentContext, Components, NativeComponent};
 use objc2::rc::Retained;
@@ -125,59 +125,48 @@ define_class!(
             self.resized();
         }
 
+        // The left button drags, the right one rotates and tilts, and the
+        // others mean nothing to the map.
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
-            self.press(event, Phase::Down, Button::Primary);
+            self.press(event, Phase::Down, false);
         }
 
         #[unsafe(method(mouseDragged:))]
         fn mouse_dragged(&self, event: &NSEvent) {
-            self.press(event, Phase::Move, Button::Primary);
+            self.press(event, Phase::Move, false);
         }
 
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
-            self.press(event, Phase::Up, Button::Primary);
+            self.press(event, Phase::Up, false);
         }
 
         #[unsafe(method(rightMouseDown:))]
         fn right_mouse_down(&self, event: &NSEvent) {
-            self.press(event, Phase::Down, Button::Secondary);
+            self.press(event, Phase::Down, true);
         }
 
         #[unsafe(method(rightMouseDragged:))]
         fn right_mouse_dragged(&self, event: &NSEvent) {
-            self.press(event, Phase::Move, Button::Secondary);
+            self.press(event, Phase::Move, true);
         }
 
         #[unsafe(method(rightMouseUp:))]
         fn right_mouse_up(&self, event: &NSEvent) {
-            self.press(event, Phase::Up, Button::Secondary);
+            self.press(event, Phase::Up, true);
         }
 
-        #[unsafe(method(otherMouseDown:))]
-        fn other_mouse_down(&self, event: &NSEvent) {
-            self.press(event, Phase::Down, Button::Middle);
-        }
-
-        #[unsafe(method(otherMouseDragged:))]
-        fn other_mouse_dragged(&self, event: &NSEvent) {
-            self.press(event, Phase::Move, Button::Middle);
-        }
-
-        #[unsafe(method(otherMouseUp:))]
-        fn other_mouse_up(&self, event: &NSEvent) {
-            self.press(event, Phase::Up, Button::Middle);
-        }
-
+        // AppKit's positive y scrolls up, which zooms in. A wheel's lines
+        // are its detents, a third of a level each, eased; a trackpad's or a
+        // precise wheel's points 1/300 level each.
         #[unsafe(method(scrollWheel:))]
         fn scroll_wheel(&self, event: &NSEvent) {
-            // The web's sign, which the gestures take: down is positive.
-            let delta = -event.scrollingDeltaY();
-            let delta =
-                if event.hasPreciseScrollingDeltas() { WheelDelta::Pixels(delta) } else { WheelDelta::Notches(delta) };
-            let input = Input::Wheel { position: self.position(event), delta, modifiers: modifiers(event) };
-            self.gesture(input);
+            let delta = event.scrollingDeltaY();
+            let discrete = !event.hasPreciseScrollingDeltas();
+            let zoom = if discrete { delta / 3.0 } else { delta / 300.0 };
+            let pan = ScreenCoordinate::new(0.0, 0.0);
+            self.gesture(Input::Delta { position: self.position(event), discrete, pan, zoom, bearing: 0.0, pitch: 0.0 });
         }
 
         #[unsafe(method(magnifyWithEvent:))]
@@ -219,10 +208,11 @@ impl MapView {
         ScreenCoordinate::new(x, y)
     }
 
-    fn press(&self, event: &NSEvent, phase: Phase, button: Button) {
+    fn press(&self, event: &NSEvent, phase: Phase, secondary: bool) {
         let Some(shared) = self.ivars().upgrade() else { return };
         let ScreenCoordinate { x, y } = self.position(event);
-        shared.press(&Press { id: 0, phase, x, y, button, touch: false, modifiers: modifiers(event) });
+        let modes = Modes { rotate: secondary, ..key_modes(event) };
+        shared.press(&Press { id: 0, phase, x, y, touch: false, secondary, modes });
     }
 
     fn gesture(&self, input: Input) {
@@ -231,14 +221,12 @@ impl MapView {
     }
 }
 
-fn modifiers(event: &NSEvent) -> Modifiers {
+/// What the keys held at `event` make a mouse drag do: Control rotates and
+/// tilts, and Shift zooms to a box, and makes a double click zoom out.
+fn key_modes(event: &NSEvent) -> Modes {
     let flags = event.modifierFlags();
-    Modifiers {
-        shift: flags.contains(NSEventModifierFlags::Shift),
-        ctrl: flags.contains(NSEventModifierFlags::Control),
-        alt: flags.contains(NSEventModifierFlags::Option),
-        meta: flags.contains(NSEventModifierFlags::Command),
-    }
+    let shift = flags.contains(NSEventModifierFlags::Shift);
+    Modes { rotate: flags.contains(NSEventModifierFlags::Control), box_zoom: shift, zoom_out: shift }
 }
 
 fn pinch_phase(event: &NSEvent) -> PinchPhase {

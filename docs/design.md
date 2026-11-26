@@ -37,9 +37,8 @@ the app's state, typed in TypeScript.
   styles keeps it.
 - `projection`, `sky`, `light` and `terrain` set the style's root properties over the base style's,
   which come back when the content drops them, and `state` sets the values its `global-state`
-  expressions read. What an engine doesn't draw, as mln-rs doesn't draw terrain, is reported in the
-  record's `failure` and an `error` event, and doesn't refuse the canvas, since another engine may
-  draw it.
+  expressions read. What an engine doesn't draw is reported in the record's `failure` and an `error`
+  event, and doesn't refuse the canvas, since another engine may draw it.
 - `images` names the app's images that layers use, such as an `icon-image`, by their paths under
   `assets/`. The surface asks Exact for each, decodes it with mln-rs and adds it to the style.
 - A click queries the content's layers at the point, widened by `hitPadding`, and the record's `click`
@@ -111,9 +110,11 @@ none once everything has drawn.
 A click asks the session for the features the content's layers drew there, and for a cluster's
 expansion zoom, and reaches the app once both answered, a frame or two later.
 
-Input goes to mln_gestures' `GestureRecognizer`, which has GL JS's gesture set of drag, wheel, double
-click, two-finger pinch and rotate, the arrow keys and `+`/`-`, and moves the map with the camera
-deltas maplibre-native-ffi's C API takes.
+Input goes to mln-rs's `GestureRecognizer` (`mln_engine::gestures`), which has GL JS's gesture set of
+drag, double click, two-finger pinch and rotate, and moves the map with the camera deltas
+maplibre-native-ffi's C API takes. Each host says what a press does from its buttons and keys (the
+secondary button or Control rotates and tilts, Shift zooms to a box), and turns wheels and keys into
+camera deltas: a wheel's detent a third of a level, eased, and a trackpad's point 1/300 level.
 
 What a map loads stays in a cache database on disk, which every map of the app shares, so a map loads
 its style and tiles from there the next time, and without a network. The offline regions are in it
@@ -231,19 +232,19 @@ Five needs are met.
   and context, which the core's `component::android_init` passes on. Whisker's host does at its
   first view.
 - mln-rs links Apple's own SQLite on Apple's platforms, as Exact's own crates do
-  ([louwers/mln-rs#344](https://github.com/louwers/mln-rs/pull/344)). The SQLite it built in probed
+  ([maplibre/mln-rs#344](https://github.com/maplibre/mln-rs/pull/344)). The SQLite it built in probed
   filesystem types with `statfs`, which Apple counts as a disk-space API whose use an app's privacy
   manifest must give a reason for, and none of Apple's reasons fits, so Exact's iOS build refused the
   app.
 - A surface keeps presenting on Vulkan after the map rests
-  ([louwers/mln-rs#343](https://github.com/louwers/mln-rs/pull/343)). After ten seconds without a
+  ([maplibre/mln-rs#343](https://github.com/maplibre/mln-rs/pull/343)). After ten seconds without a
   frame the WebGPU surface asks to be reconfigured, and with its size unchanged it dropped the frame's
   acquired texture unpresented. Metal takes such a drawable back and Vulkan doesn't, so on Android
   each rest of the map cost the swapchain an image, until none was left and the map stopped drawing
   ("dequeueBuffer timed out").
 - The gesture recognizer's camera trait and events are public again, and its options have switches
   for rotating, pitching and scroll zoom
-  ([louwers/mln-rs#350](https://github.com/louwers/mln-rs/pull/350)). A host on the runtime has the
+  ([maplibre/mln-rs#350](https://github.com/maplibre/mln-rs/pull/350)). A host on the runtime has the
   map on the runtime's thread, so its camera reads the map's snapshot and sends the recognizer's
   deltas as commands, which takes implementing `GestureCamera` outside mln-rs.
 

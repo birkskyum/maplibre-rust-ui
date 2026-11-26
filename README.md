@@ -1,6 +1,6 @@
 # maplibre-rust-ui
 
-MapLibre maps for Rust UI frameworks, drawn by [mln-rs](https://github.com/louwers/mln-rs), the Rust
+MapLibre maps for Rust UI frameworks, drawn by [mln-rs](https://github.com/maplibre/mln-rs), the Rust
 port of MapLibre Native.
 
 An app declares its map as a base style, the app's own sources and layers over it, a camera and
@@ -34,10 +34,10 @@ An early prototype.
 ## Building
 
 The crates find mln-rs by path, as a checkout next to this repository (`../mln-rs`), at its
-release `v0.0.12`. The core builds and tests on its own:
+release `v0.0.18`. The core builds and tests on its own:
 
 ```sh
-git clone https://github.com/louwers/mln-rs && git -C mln-rs checkout -b maplibre-rust-ui v0.0.12
+git clone https://github.com/maplibre/mln-rs && git -C mln-rs checkout -b maplibre-rust-ui v0.0.18
 cd maplibre-rust-ui/core && cargo test
 ```
 

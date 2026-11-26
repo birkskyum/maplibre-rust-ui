@@ -1,6 +1,6 @@
 # maplibre-rust-ui
 
-MapLibre maps for Rust UI frameworks, drawn by [mln-rs](https://github.com/louwers/mln-rs), the Rust
+MapLibre maps for Rust UI frameworks, drawn by [mln-rs](https://github.com/maplibre/mln-rs), the Rust
 port of MapLibre Native. This crate is the core the hosts build on, the map an app declares and the
 engine that draws it.
 

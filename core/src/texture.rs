@@ -5,7 +5,7 @@
 //! next frame after the host's draw.
 
 use mln_runtime::BorrowedRing;
-use mln_util::size::Size;
+use mln_style::size::Size;
 use mln_webgpu::BorrowedTextures;
 
 /// Premultiplied, as mln-rs draws.
@@ -46,7 +46,7 @@ impl MapTexture {
     pub fn ring(&self) -> BorrowedRing {
         BorrowedRing::webgpu(BorrowedTextures {
             textures: vec![self.texture.clone()],
-            size: self.pixels(),
+            size: mln_gfx::Size::new(self.texture.width(), self.texture.height()),
             depth_textures: Vec::new(),
         })
     }

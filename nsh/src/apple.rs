@@ -11,7 +11,7 @@ use block2::RcBlock;
 use maplibre_rust_ui::Viewport;
 use maplibre_rust_ui::component::{self, Component, Press};
 use maplibre_rust_ui::gestures::Input;
-use maplibre_rust_ui::util::size::Size;
+use maplibre_rust_ui::style::size::Size;
 use nsh_core::JsonValue;
 use objc2::rc::Retained;
 use objc2_foundation::{NSRunLoop, NSRunLoopCommonModes, NSTimer};

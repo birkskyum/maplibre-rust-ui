@@ -11,11 +11,11 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use mln_gestures::{Button, Input, Modifiers, PointerKind};
+use mln_engine::geo::ScreenCoordinate;
+use mln_engine::gestures::{Input, Modes, PointerKind};
 use mln_runtime::{AcquiredFrame, Device, Driver, ExportKind, ExportKinds, ExportedRing, RenderTarget};
-use mln_util::geo::ScreenCoordinate;
-use mln_util::image::PremultipliedImage;
-use mln_util::size::Size;
+use mln_style::bitmap::PremultipliedImage;
+use mln_style::size::Size;
 use serde_json::Value as Json;
 
 use crate::model::{Camera, Command, Content, Event, Inputs, Marker, Options, Record};
@@ -83,9 +83,12 @@ pub struct Press {
     pub phase: Phase,
     pub x: f64,
     pub y: f64,
-    pub button: Button,
     pub touch: bool,
-    pub modifiers: Modifiers,
+    /// The secondary mouse button, whose click opens a context menu.
+    pub secondary: bool,
+    /// What a drag or double tap of the pointer does, from its buttons and
+    /// the held keys, which the gestures read as it goes down.
+    pub modes: Modes,
 }
 
 /// A map whose props, commands and input come from a view of the platform's
@@ -170,7 +173,8 @@ impl Component {
     ///
     /// Why the image didn't decode.
     pub fn add_image(&mut self, src: &str, bytes: &[u8]) -> Result<(), String> {
-        let image = mln_image::decode_image(bytes).map_err(|e| format!("maplibre: image {src}: {}", e.message))?;
+        let image =
+            mln_engine::image::decode_image(bytes).map_err(|e| format!("maplibre: image {src}: {}", e.message))?;
         self.images.insert(src.to_owned(), image);
         if let Some(engine) = self.engine.as_mut() {
             engine.images_changed();
@@ -203,7 +207,7 @@ impl Component {
     #[must_use]
     pub fn place(&self, marker: &Marker, frame: [f32; 4]) -> Option<Placement> {
         let drawn = self.engine.as_ref()?.drawn_view()?;
-        let projection = mln_map::MapProjection::from_view(drawn).ok()?;
+        let projection = mln_engine::camera::MapProjection::from_view(drawn).ok()?;
         let viewport = self.viewport?;
         let view = View {
             projection: &projection,
@@ -332,8 +336,8 @@ impl Component {
     pub fn pointer(&mut self, press: &Press) {
         let at_ms = self.now_ms();
         let Some(engine) = self.engine.as_mut() else { return };
-        let Press { id, phase, x, y, button, touch, modifiers } = *press;
-        engine.pointer(&Pointer { id, phase, x, y, touch, secondary: button == Button::Secondary, at_ms });
+        let Press { id, phase, x, y, touch, secondary, modes } = *press;
+        engine.pointer(&Pointer { id, phase, x, y, touch, secondary, at_ms });
         if !engine.interactive() {
             return;
         }
@@ -342,9 +346,8 @@ impl Component {
             Phase::Down => Input::PointerDown {
                 id,
                 kind: if touch { PointerKind::Touch } else { PointerKind::Mouse },
-                button,
                 position,
-                modifiers,
+                modes,
             },
             Phase::Move => Input::PointerMove { id, position },
             Phase::Up => Input::PointerUp { id, position },
@@ -560,11 +563,11 @@ pub unsafe fn android_init(
     context: std::ptr::NonNull<std::ffi::c_void>,
 ) -> Result<(), String> {
     // SAFETY: the caller's contract.
-    unsafe { mln_system_fonts::android::init(jni_env.as_ptr()) };
+    unsafe { mln_engine::text::system_fonts::android::init(jni_env.as_ptr()) };
     // SAFETY: the caller's contract.
     unsafe { crate::cache::android_init(jni_env.as_ptr(), context.as_ptr()) }?;
     // SAFETY: the caller's contract.
-    unsafe { mln_storage::android::init(jni_env.as_ptr(), context.as_ptr()) }.map_err(|error| error.to_string())
+    unsafe { mln_engine::storage::android::init(jni_env.as_ptr(), context.as_ptr()) }.map_err(|error| error.to_string())
 }
 
 /// A target of the Android `ANativeWindow` at `window` for a map of
@@ -733,7 +736,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         };
         let texture = image.texture().expect("a shared frame has its image");
-        assert_eq!(texture.size, Size::new(128, 96));
+        assert_eq!(texture.size, mln_gfx::Size::new(128, 96));
         assert!(matches!(texture.kind, FrameTextureKind::Exported(ExportedImage::IoSurface { .. })));
     }
 

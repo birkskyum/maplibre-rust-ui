@@ -1,7 +1,7 @@
 # maplibre-exact
 
 MapLibre maps in [Exact](https://github.com/expo/exact) apps, drawn by
-[mln-rs](https://github.com/louwers/mln-rs) on Exact's GPU canvas. It runs on macOS, iOS and Android.
+[mln-rs](https://github.com/maplibre/mln-rs) on Exact's GPU canvas. It runs on macOS, iOS and Android.
 
 An app adds it with Exact's `add` verb, on Exact `6758f7d0c` or later:
 

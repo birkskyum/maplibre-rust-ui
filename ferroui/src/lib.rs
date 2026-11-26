@@ -53,13 +53,13 @@ use ferroui_base::{
 use ferroui_controls::{Canvas, Control, ControlImpl};
 use maplibre_rust_ui::component::Component;
 pub use maplibre_rust_ui::component::{MarkerPlace, Press};
-pub use maplibre_rust_ui::gestures::{Button, Modifiers};
-use maplibre_rust_ui::gestures::{Input, PinchPhase, WheelDelta};
+use maplibre_rust_ui::geo::ScreenCoordinate;
+pub use maplibre_rust_ui::gestures::Modes;
+use maplibre_rust_ui::gestures::{Input, PinchPhase};
 pub use maplibre_rust_ui::model;
 use maplibre_rust_ui::model::{Command, Event, Inputs, Record};
 use maplibre_rust_ui::runtime::{AcquiredFrame, ExportKind, ExportedImage, FrameTextureKind};
-use maplibre_rust_ui::util::geo::ScreenCoordinate;
-use maplibre_rust_ui::util::size::Size as MapSize;
+use maplibre_rust_ui::style::size::Size as MapSize;
 pub use maplibre_rust_ui::{Phase, Viewport};
 
 /// How long after a trackpad's last pinch or rotation the gesture ends, and
@@ -94,8 +94,9 @@ pub struct FerroMap {
     next: RefCell<Option<AcquiredFrame>>,
     sequence: Cell<u64>,
     frame_asked: Cell<bool>,
-    /// The pointers held down on the map, with the button each holds.
-    down: RefCell<Vec<(u32, Button)>>,
+    /// The pointers held down on the map, with whether each holds the
+    /// secondary button.
+    down: RefCell<Vec<(u32, bool)>>,
     /// The trackpad's pinch, as the count of its updates, which a timer
     /// ends once they stop.
     pinch: Cell<u64>,
@@ -463,11 +464,11 @@ impl FerroMap {
     }
 
     /// The control's pointer `e` as the map takes it.
-    fn press(&self, e: &PointerEventArgs, id: u32, phase: Phase, button: Button) {
+    fn press(&self, e: &PointerEventArgs, id: u32, phase: Phase, secondary: bool) {
         let at = e.get_position(Some(self));
         let touch = e.pointer().type_() == PointerType::Touch;
-        let modifiers = modifiers(e.key_modifiers());
-        self.pointer(&Press { id, phase, x: at.x, y: at.y, button, touch, modifiers });
+        let modes = if touch { Modes::default() } else { Modes { rotate: secondary, ..key_modes(e.key_modifiers()) } };
+        self.pointer(&Press { id, phase, x: at.x, y: at.y, touch, secondary, modes });
     }
 
     /// A trackpad's pinch or rotation, which goes on until its updates stop.
@@ -543,28 +544,29 @@ impl VisualImpl for FerroMap {
 impl InputElementImpl for FerroMap {
     fn on_pointer_pressed(this: &Self, e: &PointerPressedEventArgs) {
         Self::parent_on_pointer_pressed(this, e);
-        let button = match e.properties().pointer_update_kind {
-            PointerUpdateKind::LeftButtonPressed => Button::Primary,
-            PointerUpdateKind::RightButtonPressed => Button::Secondary,
-            PointerUpdateKind::MiddleButtonPressed => Button::Middle,
+        // The left button drags, the right one rotates and tilts, and the
+        // others mean nothing to the map.
+        let secondary = match e.properties().pointer_update_kind {
+            PointerUpdateKind::LeftButtonPressed => false,
+            PointerUpdateKind::RightButtonPressed => true,
             _ => return,
         };
         let id = e.pointer().id() as u32;
         if this.down.borrow().iter().any(|(down, _)| *down == id) {
             return;
         }
-        this.down.borrow_mut().push((id, button));
+        this.down.borrow_mut().push((id, secondary));
         e.pointer().capture(Some(&this.to_ref().upcast::<InputElement>()));
         e.set_handled(true);
-        this.press(e, id, Phase::Down, button);
+        this.press(e, id, Phase::Down, secondary);
     }
 
     fn on_pointer_moved(this: &Self, e: &PointerEventArgs) {
         Self::parent_on_pointer_moved(this, e);
         let id = e.pointer().id() as u32;
-        let held = this.down.borrow().iter().find(|(down, _)| *down == id).map(|(_, button)| *button);
-        if let Some(button) = held {
-            this.press(e, id, Phase::Move, button);
+        let held = this.down.borrow().iter().find(|(down, _)| *down == id).map(|(_, secondary)| *secondary);
+        if let Some(secondary) = held {
+            this.press(e, id, Phase::Move, secondary);
         }
     }
 
@@ -573,8 +575,8 @@ impl InputElementImpl for FerroMap {
         let id = e.pointer().id() as u32;
         let held = this.down.borrow().iter().position(|(down, _)| *down == id);
         if let Some(index) = held {
-            let (_, button) = this.down.borrow_mut().remove(index);
-            this.press(e, id, Phase::Up, button);
+            let (_, secondary) = this.down.borrow_mut().remove(index);
+            this.press(e, id, Phase::Up, secondary);
             e.pointer().capture(None);
             e.set_handled(true);
         }
@@ -585,16 +587,9 @@ impl InputElementImpl for FerroMap {
         let id = e.pointer().id() as u32;
         let held = this.down.borrow().iter().position(|(down, _)| *down == id);
         if let Some(index) = held {
-            let (_, button) = this.down.borrow_mut().remove(index);
-            let press = Press {
-                id,
-                phase: Phase::Cancel,
-                x: 0.0,
-                y: 0.0,
-                button,
-                touch: false,
-                modifiers: Modifiers::default(),
-            };
+            let (_, secondary) = this.down.borrow_mut().remove(index);
+            let press =
+                Press { id, phase: Phase::Cancel, x: 0.0, y: 0.0, touch: false, secondary, modes: Modes::default() };
             this.pointer(&press);
         }
     }
@@ -603,11 +598,16 @@ impl InputElementImpl for FerroMap {
         Self::parent_on_pointer_wheel_changed(this, e);
         let at = e.get_position(Some(this));
         // FerroUI's macOS view gives a trackpad's points over 50 and a
-        // wheel's lines over 5, up being positive; the map takes the web's
-        // pixels, down being positive.
-        let delta = WheelDelta::Pixels(-e.delta().y * 50.0);
-        let modifiers = modifiers(e.key_modifiers());
-        this.gesture(Input::Wheel { position: ScreenCoordinate::new(at.x, at.y), delta, modifiers });
+        // wheel's lines over 5, up being positive, which zooms in: 1/300
+        // level a point.
+        this.gesture(Input::Delta {
+            position: ScreenCoordinate::new(at.x, at.y),
+            discrete: false,
+            pan: ScreenCoordinate::new(0.0, 0.0),
+            zoom: e.delta().y * 50.0 / 300.0,
+            bearing: 0.0,
+            pitch: 0.0,
+        });
         e.set_handled(true);
     }
 }
@@ -634,13 +634,11 @@ fn surface_layout(_surface: u64) -> Option<(u64, u64)> {
     None
 }
 
-fn modifiers(keys: KeyModifiers) -> Modifiers {
-    Modifiers {
-        shift: keys.contains(KeyModifiers::SHIFT),
-        ctrl: keys.contains(KeyModifiers::CONTROL),
-        alt: keys.contains(KeyModifiers::ALT),
-        meta: keys.contains(KeyModifiers::META),
-    }
+/// What held keys make a mouse drag do: Control rotates and tilts, and Shift
+/// zooms to a box, and makes a double click zoom out.
+fn key_modes(keys: KeyModifiers) -> Modes {
+    let shift = keys.contains(KeyModifiers::SHIFT);
+    Modes { rotate: keys.contains(KeyModifiers::CONTROL), box_zoom: shift, zoom_out: shift }
 }
 
 /// Holds `child`, a child of a [`Canvas`] the map fills, at a marker's

@@ -25,7 +25,7 @@ concurrency:
 
 env:
   # The mln-rs release ci.yml builds against.
-  MLN_RS: v0.0.12
+  MLN_RS: v0.0.18
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
           path: maplibre-rust-ui
       - uses: actions/checkout@v7
         with:
-          repository: louwers/mln-rs
+          repository: maplibre/mln-rs
           ref: ${{ env.MLN_RS }}
           path: mln-rs
       - name: Publish

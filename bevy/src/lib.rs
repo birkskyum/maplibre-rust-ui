@@ -46,12 +46,12 @@ use bevy::window::{PrimaryWindow, RequestRedraw, Window};
 pub use maplibre_rust_ui::Phase;
 use maplibre_rust_ui::component::Component as Map;
 pub use maplibre_rust_ui::component::Press;
-pub use maplibre_rust_ui::gestures::Button;
-use maplibre_rust_ui::gestures::{Input, Modifiers, PinchPhase, WheelDelta};
+use maplibre_rust_ui::geo::ScreenCoordinate;
+pub use maplibre_rust_ui::gestures::Modes;
+use maplibre_rust_ui::gestures::{Input, PinchPhase};
 pub use maplibre_rust_ui::model;
 use maplibre_rust_ui::model::{Command, Event, Inputs, Record};
-use maplibre_rust_ui::util::geo::ScreenCoordinate;
-use maplibre_rust_ui::util::size::Size;
+use maplibre_rust_ui::style::size::Size;
 use maplibre_rust_ui::{Viewport, wgpu};
 
 /// Draws the [`MapLibreMap`]s of the app's UI.
@@ -227,11 +227,13 @@ fn run_maps(
     let window = input.window.single().ok();
     let cursor = window.and_then(Window::physical_cursor_position);
     let keys = &input.keys;
-    let modifiers = Modifiers {
-        shift: keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
-        ctrl: keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]),
-        alt: keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]),
-        meta: keys.any_pressed([KeyCode::SuperLeft, KeyCode::SuperRight]),
+    // Control rotates and tilts, and Shift zooms to a box, and makes a double
+    // click zoom out.
+    let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+    let key_modes = Modes {
+        rotate: keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]),
+        box_zoom: shift,
+        zoom_out: shift,
     };
     let buttons: Vec<MouseButtonInput> = input.buttons.read().cloned().collect();
     let wheels: Vec<MouseWheel> = input.wheels.read().cloned().collect();
@@ -261,29 +263,35 @@ fn run_maps(
             })
         };
         let over = cursor.filter(|at| node.contains_point(*transform, *at)).and_then(local);
-        for button in &buttons {
+        // The left button drags, the right one rotates and tilts, and the
+        // others mean nothing to the map.
+        for button in buttons.iter().filter(|button| matches!(button.button, MouseButton::Left | MouseButton::Right)) {
             let held = state.buttons.contains(&button.button);
             let pressed = button.state.is_pressed();
+            let secondary = button.button == MouseButton::Right;
             let Some(at) = cursor.and_then(local) else { continue };
             if pressed && over.is_some() && !held {
                 state.buttons.push(button.button);
-                state.press(0, Phase::Down, at, button.button, modifiers);
+                state.press(0, Phase::Down, at, secondary, Modes { rotate: secondary, ..key_modes });
             } else if !pressed && held {
                 state.buttons.retain(|other| *other != button.button);
-                state.press(0, Phase::Up, at, button.button, modifiers);
+                state.press(0, Phase::Up, at, secondary, Modes::default());
             }
         }
-        if let (Some(first), Some(at)) = (state.buttons.first().copied(), cursor.and_then(local)) {
-            state.press(0, Phase::Move, at, first, modifiers);
+        if let (false, Some(at)) = (state.buttons.is_empty(), cursor.and_then(local)) {
+            state.press(0, Phase::Move, at, false, Modes::default());
         }
         if let Some(at) = over {
+            // Bevy's positive y scrolls up, which zooms in. Lines are a
+            // wheel's detents, a third of a level each, eased; pixels a
+            // trackpad's or a precise wheel's scrolling, 1/300 level each.
             for wheel in &wheels {
-                // The web's sign, which the gestures take: down is positive.
-                let delta = match wheel.unit {
-                    MouseScrollUnit::Pixel => WheelDelta::Pixels(-f64::from(wheel.y)),
-                    MouseScrollUnit::Line => WheelDelta::Notches(-f64::from(wheel.y)),
+                let (discrete, zoom) = match wheel.unit {
+                    MouseScrollUnit::Pixel => (false, f64::from(wheel.y) / 300.0),
+                    MouseScrollUnit::Line => (true, f64::from(wheel.y) / 3.0),
                 };
-                state.map.gesture(Input::Wheel { position: at, delta, modifiers });
+                let pan = ScreenCoordinate::new(0.0, 0.0);
+                state.map.gesture(Input::Delta { position: at, discrete, pan, zoom, bearing: 0.0, pitch: 0.0 });
             }
         }
         let pinch_at = over.or(state.pinching.then(|| ScreenCoordinate::new(0.0, 0.0)));
@@ -353,13 +361,8 @@ fn place_markers(
 }
 
 impl MapState {
-    fn press(&mut self, id: u32, phase: Phase, at: ScreenCoordinate, button: MouseButton, modifiers: Modifiers) {
-        let button = match button {
-            MouseButton::Right => Button::Secondary,
-            MouseButton::Middle => Button::Middle,
-            _ => Button::Primary,
-        };
-        self.map.pointer(&Press { id, phase, x: at.x, y: at.y, button, touch: false, modifiers });
+    fn press(&mut self, id: u32, phase: Phase, at: ScreenCoordinate, secondary: bool, modes: Modes) {
+        self.map.pointer(&Press { id, phase, x: at.x, y: at.y, touch: false, secondary, modes });
     }
 
     fn pinch(&mut self, center: ScreenCoordinate, scale: f64, rotation: f64) {
@@ -388,15 +391,7 @@ impl MapState {
             }
             id
         };
-        let press = Press {
-            id,
-            phase,
-            x: at.x,
-            y: at.y,
-            button: Button::Primary,
-            touch: true,
-            modifiers: Modifiers::default(),
-        };
+        let press = Press { id, phase, x: at.x, y: at.y, touch: true, secondary: false, modes: Modes::default() };
         self.map.pointer(&press);
     }
 }

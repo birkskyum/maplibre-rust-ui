@@ -4,8 +4,8 @@
 //! turns with the map, and squashed as the map pitches when it lies on the
 //! map. A host moves the view there, or draws its pixels there.
 
-use mln_map::MapProjection;
-use mln_util::geo::LatLng;
+use mln_engine::camera::MapProjection;
+use mln_style::geo::LatLng;
 
 use crate::model::Marker;
 
@@ -80,9 +80,10 @@ fn at(a: f64, b: f64, c: f64, d: f64, tx: f64, ty: f64) -> Placement {
 
 #[cfg(test)]
 mod tests {
-    use mln_actor::RunLoop;
-    use mln_map::{CameraOptions, Map, MapOptions};
-    use mln_util::size::Size;
+    use mln_engine::camera::CameraOptions;
+    use mln_engine::exec::pool::Pool;
+    use mln_engine::map::{Map, MapOptions};
+    use mln_style::size::Size;
 
     use super::*;
     use crate::model::{Alignment, Anchor};
@@ -91,7 +92,7 @@ mod tests {
     /// pitched as given.
     fn map(bearing: f64, pitch: f64) -> MapProjection {
         let options = MapOptions { size: Size::new(400, 300), pixel_ratio: 1.0, ..MapOptions::default() };
-        let mut map = Map::new(options, &RunLoop::new()).unwrap();
+        let mut map = Map::new(options, &Pool::new(1)).unwrap();
         map.jump_to(&CameraOptions {
             center: LatLng::new(0.0, 0.0).ok(),
             zoom: Some(2.0),

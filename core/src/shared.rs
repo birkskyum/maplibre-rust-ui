@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
-use mln_map::MapEvent;
+use mln_engine::map::MapEvent;
 use mln_runtime::{MapId, Runtime, RuntimeEventKind, RuntimeOptions};
 
 use crate::offline::Update;

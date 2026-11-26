@@ -21,11 +21,11 @@ use std::collections::HashMap;
 
 use egui_wgpu::RenderState;
 use maplibre_rust_ui::component::{Component, Press};
-use maplibre_rust_ui::gestures::{Button, Input, Modifiers, PinchPhase, WheelDelta};
+use maplibre_rust_ui::geo::ScreenCoordinate;
+use maplibre_rust_ui::gestures::{Input, Modes, PinchPhase};
 pub use maplibre_rust_ui::model;
 use maplibre_rust_ui::model::{Command, Event, Inputs, Record};
-use maplibre_rust_ui::util::geo::ScreenCoordinate;
-use maplibre_rust_ui::util::size::Size;
+use maplibre_rust_ui::style::size::Size;
 use maplibre_rust_ui::{Phase, Viewport, wgpu};
 
 /// A map in an egui UI, and what the app knows of it.
@@ -195,38 +195,41 @@ impl EguiMap {
             match event {
                 // egui also reports a touch as the mouse, which the touches cover.
                 egui::Event::PointerButton { .. } | egui::Event::PointerMoved(_) if !self.touches.is_empty() => {}
+                // The primary button drags, the secondary one rotates and
+                // tilts, and the others mean nothing to the map.
+                egui::Event::PointerButton { button, .. }
+                    if !matches!(button, egui::PointerButton::Primary | egui::PointerButton::Secondary) => {}
                 egui::Event::PointerButton { pos, button, pressed, modifiers } => {
                     let held = self.buttons.contains(&button);
+                    let secondary = button == egui::PointerButton::Secondary;
                     if pressed && mine(pos) && !held {
                         self.buttons.push(button);
-                        self.press(0, Phase::Down, local(pos), button, modifiers);
+                        let modes = Modes { rotate: secondary, ..key_modes(modifiers) };
+                        self.press(0, Phase::Down, local(pos), secondary, modes);
                     } else if !pressed && held {
                         self.buttons.retain(|other| *other != button);
-                        self.press(0, Phase::Up, local(pos), button, modifiers);
+                        self.press(0, Phase::Up, local(pos), secondary, Modes::default());
                     }
                 }
                 egui::Event::PointerMoved(pos) if !self.buttons.is_empty() => {
-                    self.press(0, Phase::Move, local(pos), self.buttons[0], egui::Modifiers::default());
+                    self.press(0, Phase::Move, local(pos), false, Modes::default());
                 }
                 egui::Event::PointerGone if !self.buttons.is_empty() => {
                     self.buttons.clear();
-                    self.press(
-                        0,
-                        Phase::Cancel,
-                        ScreenCoordinate::new(0.0, 0.0),
-                        egui::PointerButton::Primary,
-                        egui::Modifiers::default(),
-                    );
+                    self.press(0, Phase::Cancel, ScreenCoordinate::new(0.0, 0.0), false, Modes::default());
                 }
-                egui::Event::MouseWheel { unit, delta, modifiers, .. } if over.is_some() => {
-                    // The web's sign, which the gestures take: down is positive.
-                    let delta = match unit {
-                        egui::MouseWheelUnit::Point => WheelDelta::Pixels(-f64::from(delta.y)),
-                        egui::MouseWheelUnit::Line => WheelDelta::Notches(-f64::from(delta.y)),
-                        egui::MouseWheelUnit::Page => WheelDelta::Notches(-f64::from(delta.y) * 3.0),
+                // egui's positive y scrolls up, which zooms in. Lines are a
+                // wheel's detents, a third of a level each, eased; points a
+                // trackpad's or a precise wheel's scrolling, 1/300 level each.
+                egui::Event::MouseWheel { unit, delta, .. } if over.is_some() => {
+                    let (discrete, zoom) = match unit {
+                        egui::MouseWheelUnit::Point => (false, f64::from(delta.y) / 300.0),
+                        egui::MouseWheelUnit::Line => (true, f64::from(delta.y) / 3.0),
+                        egui::MouseWheelUnit::Page => (true, f64::from(delta.y)),
                     };
                     let position = over.map_or(ScreenCoordinate::new(0.0, 0.0), local);
-                    self.component.gesture(Input::Wheel { position, delta, modifiers: self::modifiers(modifiers) });
+                    let pan = ScreenCoordinate::new(0.0, 0.0);
+                    self.component.gesture(Input::Delta { position, discrete, pan, zoom, bearing: 0.0, pitch: 0.0 });
                 }
                 egui::Event::Zoom(scale) if over.is_some() || self.pinching => {
                     pinched = true;
@@ -247,20 +250,8 @@ impl EguiMap {
         }
     }
 
-    fn press(
-        &mut self,
-        id: u32,
-        phase: Phase,
-        at: ScreenCoordinate,
-        button: egui::PointerButton,
-        keys: egui::Modifiers,
-    ) {
-        let button = match button {
-            egui::PointerButton::Secondary => Button::Secondary,
-            egui::PointerButton::Middle => Button::Middle,
-            _ => Button::Primary,
-        };
-        let press = Press { id, phase, x: at.x, y: at.y, button, touch: false, modifiers: modifiers(keys) };
+    fn press(&mut self, id: u32, phase: Phase, at: ScreenCoordinate, secondary: bool, modes: Modes) {
+        let press = Press { id, phase, x: at.x, y: at.y, touch: false, secondary, modes };
         self.component.pointer(&press);
     }
 
@@ -291,19 +282,13 @@ impl EguiMap {
             }
             id
         };
-        let press = Press {
-            id,
-            phase,
-            x: at.x,
-            y: at.y,
-            button: Button::Primary,
-            touch: true,
-            modifiers: Modifiers::default(),
-        };
+        let press = Press { id, phase, x: at.x, y: at.y, touch: true, secondary: false, modes: Modes::default() };
         self.component.pointer(&press);
     }
 }
 
-fn modifiers(keys: egui::Modifiers) -> Modifiers {
-    Modifiers { shift: keys.shift, ctrl: keys.ctrl, alt: keys.alt, meta: keys.mac_cmd }
+/// What held keys make a mouse drag do: Control rotates and tilts, and Shift
+/// zooms to a box, and makes a double click zoom out.
+fn key_modes(keys: egui::Modifiers) -> Modes {
+    Modes { rotate: keys.ctrl, box_zoom: keys.shift, zoom_out: keys.shift }
 }

@@ -18,24 +18,17 @@ categories = ["gui", "science::geo", "rendering"]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-feature = { package = "mln-rs-feature", path = "../../mln-rs/vendor/feature", version = "0.0.12" }
-mln_conversion = { package = "mln-rs-conversion", path = "../../mln-rs/crates/mln_conversion", version = "0.0.12" }
-mln_gestures = { package = "mln-rs-gestures", path = "../../mln-rs/crates/mln_gestures", version = "0.0.12" }
-mln_image = { package = "mln-rs-image", path = "../../mln-rs/crates/mln_image", version = "0.0.12" }
-mln_map = { package = "mln-rs-map", path = "../../mln-rs/crates/mln_map", version = "0.0.12" }
-# Only for its font-face shaper, which the runtime's renderer then has.
-mln_renderer = { package = "mln-rs-renderer", path = "../../mln-rs/crates/mln_renderer", version = "0.0.12", features = ["font-face-shaper"] }
-mln_storage = { package = "mln-rs-storage", path = "../../mln-rs/crates/mln_storage", version = "0.0.12" }
-mln_runtime = { package = "mln-rs-runtime", path = "../../mln-rs/crates/mln_runtime", version = "0.0.12", default-features = false, features = ["webgpu"] }
-mln_style = { package = "mln-rs-style", path = "../../mln-rs/crates/mln_style", version = "0.0.12" }
-mln_util = { package = "mln-rs-util", path = "../../mln-rs/crates/mln_util", version = "0.0.12" }
-mln_webgpu = { package = "mln-rs-webgpu", path = "../../mln-rs/crates/mln_webgpu", version = "0.0.12" }
+feature = { package = "mln-rs-feature", path = "../../mln-rs/vendor/feature", version = "0.0.18" }
+# With its font-face shaper, which the runtime's renderer then has, and the
+# SQLite cache and offline regions.
+mln_engine = { package = "mln-rs-engine", path = "../../mln-rs/crates/mln_engine", version = "0.0.18", default-features = false, features = ["font-face-shaper", "sqlite"] }
+# For the size of the textures the session renders into.
+mln_gfx = { package = "mln-rs-gfx", path = "../../mln-rs/crates/mln_gfx", version = "0.0.18" }
+mln_runtime = { package = "mln-rs-runtime", path = "../../mln-rs/crates/mln_runtime", version = "0.0.18", default-features = false, features = ["webgpu"] }
+mln_style = { package = "mln-rs-style", path = "../../mln-rs/crates/mln_style", version = "0.0.18" }
+mln_webgpu = { package = "mln-rs-webgpu", path = "../../mln-rs/crates/mln_webgpu", version = "0.0.18" }
 # mln-rs's, which hosts that draw with wgpu share.
 wgpu = { version = "30.0.1", default-features = false }
-
-[dev-dependencies]
-# A run loop for the maps that tests make.
-mln_actor = { package = "mln-rs-actor", path = "../../mln-rs/crates/mln_actor", version = "0.0.12" }
 
 [features]
 # mln-rs's Metal backend, whose maps render into IOSurfaces that a host draws.
@@ -45,6 +38,6 @@ metal = ["mln_runtime/metal"]
 # To ask the app's context for its cache directory.
 jni = { version = "0.22.4", default-features = false }
 raw-window-handle = "0.6.2"
-# For their Android setup, which needs the app's Java VM and context.
-mln_storage = { package = "mln-rs-storage", path = "../../mln-rs/crates/mln_storage", version = "0.0.12" }
-mln_system_fonts = { package = "mln-rs-system-fonts", path = "../../mln-rs/crates/mln_system_fonts", version = "0.0.12" }
+# For the storage's and the system fonts' Android setup, which needs the app's
+# Java VM and context.
+mln_engine = { package = "mln-rs-engine", path = "../../mln-rs/crates/mln_engine", version = "0.0.18", default-features = false, features = ["system-fonts"] }
