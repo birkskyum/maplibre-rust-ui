@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MLN_RS: v0.0.12
+  MLN_RS: v0.0.18
   # GPUI from Zed's repository, with the change in gpui/patches/zed.
   ZED: dc93abce2fa6c0bf349d425310db4884aa953467
   CARGO_TERM_COLOR: always

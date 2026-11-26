@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 
 use mln_runtime::{Applied, Completion, Error, ErrorKind, Map};
-use mln_util::image::PremultipliedImage;
+use mln_style::bitmap::PremultipliedImage;
 use serde_json::Value as Json;
 
 use crate::model::{Content, Layer, Placement};
@@ -278,11 +278,9 @@ fn apply_roots(commands: &mut Commands<'_>, base: &Base, held: &mut Content, des
         held.roots.iter().filter(|(name, _)| desired.root(name).is_none()).map(|(name, _)| name.clone()).collect();
     for name in dropped {
         held.roots.retain(|(root, _)| *root != name);
-        if name != "terrain" {
-            let value = base.roots.get(&name).cloned().unwrap_or(Json::Null);
-            let command = commands.map.set_style_root_property(&name, value.to_string());
-            commands.send(name, Undo::Nothing, command);
-        }
+        let value = base.roots.get(&name).cloned().unwrap_or(Json::Null);
+        let command = commands.map.set_style_root_property(&name, value.to_string());
+        commands.send(name, Undo::Nothing, command);
     }
     for (name, value) in &desired.roots {
         if held.root(name) == Some(value) {
@@ -590,7 +588,7 @@ mod tests {
         let (held, _) = change(&map, &base, &Content::default(), &pin, &HashMap::new());
         assert!(image(&map).is_none());
         let decoded =
-            HashMap::from([("assets/pin.png".to_owned(), PremultipliedImage::new(mln_util::size::Size::new(4, 4)))]);
+            HashMap::from([("assets/pin.png".to_owned(), PremultipliedImage::new(mln_style::size::Size::new(4, 4)))]);
         let (held, errors) = change(&map, &base, &held, &pin, &decoded);
         assert_eq!(errors, Vec::new());
         assert!(image(&map).is_some());
@@ -610,16 +608,15 @@ mod tests {
     #[test]
     fn root_properties_go_over_the_base_styles_and_give_it_back() {
         let (_runtime, map, base) = map(r#"{"version":8,"sources":{},"layers":[],"projection":{"type":"mercator"}}"#);
-        let projection = |map: &Map| map.style_root_property("projection").unwrap().wait().unwrap();
+        let root = |map: &Map, name: &str| map.style_root_property(name).unwrap().wait().unwrap();
         let globe = content(r#"{"projection":{"type":"globe"},"terrain":{"source":"dem"}}"#);
         let (held, errors) = change(&map, &base, &Content::default(), &globe, &HashMap::new());
-        assert_eq!(errors, [("terrain".to_owned(), ErrorKind::Unsupported)]);
-        assert_eq!(projection(&map).as_deref(), Some(r#"{"type":"globe"}"#));
-        // Terrain stays held, so it is reported once, not again on the next change.
-        let (held, errors) = change(&map, &base, &held, &globe, &HashMap::new());
         assert_eq!(errors, Vec::new());
+        assert_eq!(root(&map, "projection").as_deref(), Some(r#"{"type":"globe"}"#));
+        assert!(root(&map, "terrain").is_some());
         change(&map, &base, &held, &Content::default(), &HashMap::new());
-        assert_eq!(projection(&map).as_deref(), Some(r#"{"type":"mercator"}"#));
+        assert_eq!(root(&map, "projection").as_deref(), Some(r#"{"type":"mercator"}"#));
+        assert_eq!(root(&map, "terrain"), None);
     }
 
     #[test]

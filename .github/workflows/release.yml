@@ -25,7 +25,7 @@ concurrency:
 
 env:
   # The mln-rs release ci.yml builds against.
-  MLN_RS: v0.0.12
+  MLN_RS: v0.0.18
   CARGO_TERM_COLOR: always
 
 jobs:

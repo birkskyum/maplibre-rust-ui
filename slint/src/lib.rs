@@ -22,11 +22,11 @@
 
 pub use maplibre_rust_ui::component::MarkerPlace;
 use maplibre_rust_ui::component::{Component, Press};
-use maplibre_rust_ui::gestures::{Button, Input, Modifiers, WheelDelta};
+use maplibre_rust_ui::geo::ScreenCoordinate;
+use maplibre_rust_ui::gestures::{Input, Modes};
 pub use maplibre_rust_ui::model;
 use maplibre_rust_ui::model::{Command, Event, Inputs, Record};
-use maplibre_rust_ui::util::geo::ScreenCoordinate;
-use maplibre_rust_ui::util::size::Size;
+use maplibre_rust_ui::style::size::Size;
 use maplibre_rust_ui::{Phase, Viewport};
 use slint::wgpu_30::wgpu;
 
@@ -91,40 +91,46 @@ impl SlintMap {
     /// A pointer, as `MapLibre.pointer` reports it: its kind (0 down, 1 up,
     /// 2 move, 3 cancel), its button (0 the primary, 1 the middle, 2 the
     /// secondary), its finger (0 for a mouse), where it is in logical pixels,
-    /// and the shift, control, alt and meta keys.
+    /// and the shift, control, alt and meta keys. The primary button drags,
+    /// the secondary one rotates and tilts, and the middle one means nothing
+    /// to the map.
     #[allow(clippy::too_many_arguments)]
     pub fn pointer(&mut self, kind: i32, button: i32, finger: i32, x: f32, y: f32, keys: [bool; 4]) {
+        if button == 1 {
+            return;
+        }
         let phase = match kind {
             0 => Phase::Down,
             1 => Phase::Up,
             2 => Phase::Move,
             _ => Phase::Cancel,
         };
-        let button = match button {
-            2 => Button::Secondary,
-            1 => Button::Middle,
-            _ => Button::Primary,
-        };
+        let touch = finger != 0;
+        let secondary = button == 2;
+        let modes = if touch { Modes::default() } else { Modes { rotate: secondary, ..key_modes(keys) } };
         self.component.pointer(&Press {
             id: u32::try_from(finger).unwrap_or(0),
             phase,
             x: f64::from(x),
             y: f64::from(y),
-            button,
-            touch: finger != 0,
-            modifiers: modifiers(keys),
+            touch,
+            secondary,
+            modes,
         });
     }
 
     /// A wheel or trackpad scroll, as `MapLibre.scroll` reports it, by
-    /// Slint's sign: up and left are positive.
+    /// Slint's sign: up and left are positive. Up zooms in, 1/300 level a
+    /// logical pixel.
     pub fn scroll(&mut self, dx: f32, dy: f32, x: f32, y: f32, keys: [bool; 4]) {
-        let _ = dx;
-        self.component.gesture(Input::Wheel {
+        let _ = (dx, keys);
+        self.component.gesture(Input::Delta {
             position: ScreenCoordinate::new(f64::from(x), f64::from(y)),
-            // The web's sign, which the gestures take: down is positive.
-            delta: WheelDelta::Pixels(-f64::from(dy)),
-            modifiers: modifiers(keys),
+            discrete: false,
+            pan: ScreenCoordinate::new(0.0, 0.0),
+            zoom: f64::from(dy) / 300.0,
+            bearing: 0.0,
+            pitch: 0.0,
         });
     }
 
@@ -172,8 +178,11 @@ impl SlintMap {
     }
 }
 
-fn modifiers([shift, control, alt, meta]: [bool; 4]) -> Modifiers {
-    Modifiers { shift, ctrl: control, alt, meta }
+/// What the held shift, control, alt and meta keys make a mouse drag do:
+/// Control rotates and tilts, and Shift zooms to a box, and makes a double
+/// click zoom out.
+fn key_modes([shift, control, _, _]: [bool; 4]) -> Modes {
+    Modes { rotate: control, box_zoom: shift, zoom_out: shift }
 }
 
 /// Connects a [`SlintMap`] in an `Rc<RefCell<…>>` to the app's component,

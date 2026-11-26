@@ -9,8 +9,8 @@
 
 use std::sync::{Mutex, PoisonError};
 
+use mln_engine::storage::Kind;
 use mln_runtime::{Error, MapId, Runtime};
-use mln_storage::resource::Kind;
 
 use crate::model::{RequestRule, ResourceType};
 

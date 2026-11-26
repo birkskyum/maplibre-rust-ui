@@ -14,9 +14,7 @@ use bevy::render::gpu_readback::{ReadbackComplete, ReadbackOnce};
 use bevy::text::{FontSource, GenericFontFamily};
 use bevy::window::{ExitCondition, WindowResolution};
 use maplibre_bevy::model::{Camera, Command, Content, Event, Inputs, Options};
-use maplibre_bevy::{
-    Button as MapButton, MapCommand, MapEvent, MapLibreMap, MapLibrePlugin, MapMarker, MapPointer, Phase, Press,
-};
+use maplibre_bevy::{MapCommand, MapEvent, MapLibreMap, MapLibrePlugin, MapMarker, MapPointer, Phase, Press};
 use serde_json::json;
 
 const STYLE: &str = "https://tiles.openfreemap.org/styles/liberty";
@@ -309,9 +307,9 @@ fn walk(
                         phase,
                         x: f64::from(middle.x),
                         y: f64::from(middle.y),
-                        button: MapButton::Primary,
                         touch: false,
-                        modifiers: Default::default(),
+                        secondary: false,
+                        modes: Default::default(),
                     };
                     pointers.write(MapPointer { map: entity, press });
                 }

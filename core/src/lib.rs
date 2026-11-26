@@ -11,11 +11,10 @@
 //! view with props in JSON, as Native Shell's and Whisker's are, drives the
 //! engine through a [`component::Component`].
 //!
-//! The mln-rs crates a host needs are re-exported, so that a host and the
-//! engine agree on one version of them.
+//! The mln-rs crates and modules a host needs are re-exported, so that a host
+//! and the engine agree on one version of them.
 
 mod cache;
-mod camera;
 pub mod component;
 mod content;
 mod engine;
@@ -29,8 +28,6 @@ pub mod texture;
 
 pub use cache::set_cache_path;
 pub use engine::{Engine, Phase, Pointer, Viewport};
+pub use mln_engine::{camera, geo, gestures, image};
 pub use snapshot::SnapshotFiles;
-pub use {
-    mln_gestures as gestures, mln_image as image, mln_map as map, mln_runtime as runtime, mln_util as util,
-    mln_webgpu as webgpu, wgpu,
-};
+pub use {mln_runtime as runtime, mln_style as style, mln_webgpu as webgpu, wgpu};

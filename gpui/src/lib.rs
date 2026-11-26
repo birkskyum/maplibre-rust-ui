@@ -30,13 +30,13 @@ use gpui::{
 };
 use maplibre_rust_ui::component::Component;
 pub use maplibre_rust_ui::component::{MarkerPlace, Press};
-pub use maplibre_rust_ui::gestures::{Button, Modifiers};
-use maplibre_rust_ui::gestures::{Input, PinchPhase, WheelDelta};
+use maplibre_rust_ui::geo::ScreenCoordinate;
+pub use maplibre_rust_ui::gestures::Modes;
+use maplibre_rust_ui::gestures::{Input, PinchPhase};
 pub use maplibre_rust_ui::model;
 use maplibre_rust_ui::model::{Command, Event, Inputs, Record};
 use maplibre_rust_ui::runtime::{AcquiredFrame, ExportKind, ExportedImage, FrameTextureKind};
-use maplibre_rust_ui::util::geo::ScreenCoordinate;
-use maplibre_rust_ui::util::size::Size;
+use maplibre_rust_ui::style::size::Size;
 pub use maplibre_rust_ui::{Phase, Viewport};
 use objc2_core_foundation::CFRetained;
 use objc2_core_video::{CVPixelBuffer, CVPixelBufferCreateWithIOSurface, kCVReturnSuccess};
@@ -205,13 +205,9 @@ impl GpuiMap {
     }
 
     fn press(&mut self, phase: Phase, at: ScreenCoordinate, button: MouseButton, keys: gpui::Modifiers) {
-        let button = match button {
-            MouseButton::Left => Button::Primary,
-            MouseButton::Right => Button::Secondary,
-            MouseButton::Middle => Button::Middle,
-            MouseButton::Navigate(_) => return,
-        };
-        let press = Press { id: 0, phase, x: at.x, y: at.y, button, touch: false, modifiers: modifiers(keys) };
+        let secondary = button == MouseButton::Right;
+        let modes = Modes { rotate: secondary, ..key_modes(keys) };
+        let press = Press { id: 0, phase, x: at.x, y: at.y, touch: false, secondary, modes };
         self.component.pointer(&press);
     }
 }
@@ -239,6 +235,11 @@ fn listen(map: gpui::Entity<GpuiMap>, hitbox: Hitbox, window: &mut Window) {
         let (map, hitbox) = (map.clone(), hitbox.clone());
         move |event: &MouseDownEvent, phase, window, cx: &mut App| {
             if phase != DispatchPhase::Bubble || !hitbox.is_hovered(window) {
+                return;
+            }
+            // The left button drags, the right one rotates and tilts, and the
+            // others mean nothing to the map.
+            if !matches!(event.button, MouseButton::Left | MouseButton::Right) {
                 return;
             }
             map.update(cx, |map, cx| {
@@ -285,12 +286,15 @@ fn listen(map: gpui::Entity<GpuiMap>, hitbox: Hitbox, window: &mut Window) {
             if phase != DispatchPhase::Bubble || !hitbox.should_handle_scroll(window) {
                 return;
             }
-            // The web's sign, which the map's gestures take: down is positive.
-            let delta = match event.delta {
-                ScrollDelta::Pixels(delta) => WheelDelta::Pixels(-f64::from(f32::from(delta.y))),
-                ScrollDelta::Lines(delta) => WheelDelta::Notches(-f64::from(delta.y)),
+            // GPUI's positive y scrolls up, which zooms in. Lines are a
+            // wheel's detents, a third of a level each, eased; pixels a
+            // trackpad's or a precise wheel's scrolling, 1/300 level each.
+            let (discrete, zoom) = match event.delta {
+                ScrollDelta::Pixels(delta) => (false, f64::from(f32::from(delta.y)) / 300.0),
+                ScrollDelta::Lines(delta) => (true, f64::from(delta.y) / 3.0),
             };
-            let input = Input::Wheel { position: at(event.position), delta, modifiers: modifiers(event.modifiers) };
+            let pan = ScreenCoordinate::new(0.0, 0.0);
+            let input = Input::Delta { position: at(event.position), discrete, pan, zoom, bearing: 0.0, pitch: 0.0 };
             map.update(cx, |map, cx| {
                 map.component.gesture(input);
                 cx.notify();
@@ -317,8 +321,10 @@ fn listen(map: gpui::Entity<GpuiMap>, hitbox: Hitbox, window: &mut Window) {
     });
 }
 
-fn modifiers(keys: gpui::Modifiers) -> Modifiers {
-    Modifiers { shift: keys.shift, ctrl: keys.control, alt: keys.alt, meta: keys.platform }
+/// What held keys make a mouse drag do: Control rotates and tilts, and Shift
+/// zooms to a box, and makes a double click zoom out.
+fn key_modes(keys: gpui::Modifiers) -> Modes {
+    Modes { rotate: keys.control, box_zoom: keys.shift, zoom_out: keys.shift }
 }
 
 /// Holds `child` at a marker's place, in an element the map fills, upright:

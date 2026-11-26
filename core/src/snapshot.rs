@@ -15,10 +15,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
-use mln_map::{CameraOptions, CameraUpdate, MapEvent, MapMode};
+use mln_engine::camera::{CameraOptions, CameraUpdate};
+use mln_engine::image::encode_png;
+use mln_engine::map::{MapEvent, MapMode};
 use mln_runtime::{AttachOptions, Completion, EventMask, Map, MapOptions, RenderSession, RenderTarget, Runtime};
-use mln_util::image::PremultipliedImage;
-use mln_util::size::Size;
+use mln_style::bitmap::PremultipliedImage;
+use mln_style::size::Size;
 
 use crate::content::{self, Base, Sent};
 use crate::model::{Content, Snapshot};
@@ -120,7 +122,7 @@ impl Snapshotter {
     pub(crate) fn start(runtime: &Runtime, scene: &Scene<'_>) -> Result<Snapshotter, String> {
         let fail = |e: mln_runtime::Error| e.message;
         let options = MapOptions {
-            map: mln_map::MapOptions {
+            map: mln_engine::map::MapOptions {
                 size: scene.size,
                 pixel_ratio: scene.pixel_ratio,
                 map_mode: MapMode::Static,
@@ -225,7 +227,7 @@ impl Snapshotter {
     /// The PNG of `pixels`, and its file's URL or a `data:` URL of it for
     /// the record.
     fn taken(&self, pixels: &PremultipliedImage) -> Result<Taken, String> {
-        let png = mln_image::encode_png(pixels);
+        let png = encode_png(pixels);
         let (url, pixel_ratio) = match &self.files {
             Some(files) => (files.write(&png)?, self.pixel_ratio),
             None => fit(&png, pixels, self.size, self.pixel_ratio, LARGEST_URL),
@@ -246,7 +248,7 @@ fn fit(png: &[u8], pixels: &PremultipliedImage, size: Size, pixel_ratio: f32, la
         }
         let image = downscale(image, (largest as f64 / url.len() as f64).sqrt().min(0.9));
         ratio = image.size.width as f32 / size.width as f32;
-        url = data_url(&mln_image::encode_png(&image));
+        url = data_url(&encode_png(&image));
         smaller = Some(image);
     }
     (url, ratio)
@@ -333,7 +335,7 @@ mod tests {
             seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12345);
             *byte = (seed >> 16) as u8;
         }
-        let png = mln_image::encode_png(&pixels);
+        let png = encode_png(&pixels);
         let (url, ratio) = fit(&png, &pixels, Size::new(64, 32), 2.0, 8 << 10);
         assert!(url.len() <= 8 << 10, "{}", url.len());
         assert!(ratio < 2.0 && ratio > 0.0, "{ratio}");

@@ -18,12 +18,13 @@ use exact_gpu::{
     AssetChanges, AssetError, ChildrenMode, Frame, InputEvent, Placement, Surface, SurfaceError, Value,
     wgpu,
 };
-use maplibre_rust_ui::map::MapProjection;
+use maplibre_rust_ui::camera::MapProjection;
+use maplibre_rust_ui::geo::ScreenCoordinate;
 use maplibre_rust_ui::placement::View;
 use maplibre_rust_ui::runtime::{Device, Driver, RenderTarget};
+use maplibre_rust_ui::style::bitmap::PremultipliedImage;
+use maplibre_rust_ui::style::size::Size;
 use maplibre_rust_ui::texture::MapTexture;
-use maplibre_rust_ui::util::image::PremultipliedImage;
-use maplibre_rust_ui::util::size::Size;
 use maplibre_rust_ui::{Engine, SnapshotFiles, Viewport};
 
 use crate::protocol::{self, Command, Event, Inputs, Record};
@@ -49,6 +50,8 @@ pub struct MapSurface {
     record: Option<Record>,
     error: Option<SurfaceError>,
     input_changed: bool,
+    /// The pointers handed to the gestures that haven't lifted.
+    held: Vec<u32>,
     /// The content's images asked of the host, by path, and those decoded.
     asked: Vec<String>,
     decoded: HashMap<String, PremultipliedImage>,
@@ -261,10 +264,12 @@ impl Surface for MapSurface {
         if let Some(pointer) = input::pointer(event) {
             self.input_changed = engine.pointer(&pointer);
         }
-        if engine.interactive()
-            && let Some((input, at_ms)) = input::translate(event)
-        {
-            self.input_changed |= engine.gesture(input, at_ms) || engine.pressed();
+        if engine.interactive() {
+            let size = engine.viewport().size;
+            let center = ScreenCoordinate::new(f64::from(size.width) / 2.0, f64::from(size.height) / 2.0);
+            for (input, at_ms) in input::translate(event, &mut self.held, center) {
+                self.input_changed |= engine.gesture(input, at_ms) || engine.pressed();
+            }
         }
     }
 

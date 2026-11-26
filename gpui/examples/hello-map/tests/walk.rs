@@ -11,7 +11,7 @@ use gpui::{AppContext, HeadlessAppContext, PlatformHeadlessRenderer, WindowHandl
 use gpui_apple::AppleTextSystem;
 use gpui_macos::metal_renderer::MetalHeadlessRenderer;
 use hello_map_gpui::HelloMap;
-use maplibre_gpui::{Button, Modifiers, Phase, Press};
+use maplibre_gpui::{Modes, Phase, Press};
 
 /// Draws the window's frames for `duration`, as a display would.
 fn run(cx: &mut HeadlessAppContext, window: WindowHandle<HelloMap>, duration: Duration) {
@@ -54,15 +54,7 @@ fn walk() {
                 let viewport = map.viewport().expect("the map has a size");
                 let (x, y) = (f64::from(viewport.size.width) / 2.0, f64::from(viewport.size.height) / 2.0);
                 for phase in [Phase::Down, Phase::Up] {
-                    let press = Press {
-                        id: 0,
-                        phase,
-                        x,
-                        y,
-                        button: Button::Primary,
-                        touch: false,
-                        modifiers: Modifiers::default(),
-                    };
+                    let press = Press { id: 0, phase, x, y, touch: false, secondary: false, modes: Modes::default() };
                     map.pointer(&press, cx);
                 }
             });

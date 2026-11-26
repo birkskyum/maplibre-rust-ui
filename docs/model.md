@@ -147,8 +147,7 @@ How far a marker follows the map depends on what the host's framework can do wit
 `projection`, `sky`, `light` and `terrain` set the style's root properties over the base style's,
 which come back when the content drops them. `{"projection": {"type": "globe"}}` turns the globe on.
 What an engine doesn't draw is reported in the record's `failure` and an `error` event, and doesn't
-refuse the map, since another engine may draw it. mln-rs draws no 3D terrain, so `terrain` is
-reported that way.
+refuse the map, since another engine may draw it.
 
 `state` sets the values that the style's `global-state` expressions read, by name.
 

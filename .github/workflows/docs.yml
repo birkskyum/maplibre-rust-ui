@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MLN_RS: v0.0.12
+  MLN_RS: v0.0.18
   CARGO_TERM_COLOR: always
 
 jobs:

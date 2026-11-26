@@ -37,9 +37,8 @@ the app's state, typed in TypeScript.
   styles keeps it.
 - `projection`, `sky`, `light` and `terrain` set the style's root properties over the base style's,
   which come back when the content drops them, and `state` sets the values its `global-state`
-  expressions read. What an engine doesn't draw, as mln-rs doesn't draw terrain, is reported in the
-  record's `failure` and an `error` event, and doesn't refuse the canvas, since another engine may
-  draw it.
+  expressions read. What an engine doesn't draw is reported in the record's `failure` and an `error`
+  event, and doesn't refuse the canvas, since another engine may draw it.
 - `images` names the app's images that layers use, such as an `icon-image`, by their paths under
   `assets/`. The surface asks Exact for each, decodes it with mln-rs and adds it to the style.
 - A click queries the content's layers at the point, widened by `hitPadding`, and the record's `click`
@@ -111,9 +110,11 @@ none once everything has drawn.
 A click asks the session for the features the content's layers drew there, and for a cluster's
 expansion zoom, and reaches the app once both answered, a frame or two later.
 
-Input goes to mln_gestures' `GestureRecognizer`, which has GL JS's gesture set of drag, wheel, double
-click, two-finger pinch and rotate, the arrow keys and `+`/`-`, and moves the map with the camera
-deltas maplibre-native-ffi's C API takes.
+Input goes to mln-rs's `GestureRecognizer` (`mln_engine::gestures`), which has GL JS's gesture set of
+drag, double click, two-finger pinch and rotate, and moves the map with the camera deltas
+maplibre-native-ffi's C API takes. Each host says what a press does from its buttons and keys (the
+secondary button or Control rotates and tilts, Shift zooms to a box), and turns wheels and keys into
+camera deltas: a wheel's detent a third of a level, eased, and a trackpad's point 1/300 level.
 
 What a map loads stays in a cache database on disk, which every map of the app shares, so a map loads
 its style and tiles from there the next time, and without a network. The offline regions are in it

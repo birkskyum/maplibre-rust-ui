@@ -17,23 +17,23 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use mln_gestures::{GestureEvent, GestureOptions, GestureRecognizer};
-use mln_map::{
-    AnimationOptions, BoundOptions, CameraOptions, CameraUpdate, CameraUpdateMode, MapEvent, MapMode, MapProjection,
-    MapView, TransformState,
+use mln_engine::camera::{
+    AnimationOptions, BoundOptions, CameraOptions, CameraUpdate, CameraUpdateMode, MapProjection, MapView,
 };
+use mln_engine::geo::{EdgeInsets, ScreenCoordinate};
+use mln_engine::gestures::{GestureEvent, GestureOptions, GestureRecognizer, Input};
+use mln_engine::map::{MapEvent, MapMode};
 use mln_runtime::{
     AcquiredFrame, AttachOptions, BorrowedRing, CameraFitArea, CameraFitOptions, Completion, ConsumerSync, DemandMode,
     Driver, DriverWork, ErrorKind, EventMask, FrameDemand, FrameDisposition, GpuSync, LogicalExtent, MapOptions,
     MapSnapshot, RenderSession, RenderTarget, RenderedQueryGeometry, RenderedQueryOptions, Runtime, SourceInfo,
     SyncKind, SyncKinds,
 };
-use mln_util::geo::{EdgeInsets, LatLng, LatLngBounds, ScreenCoordinate, WrapMode};
-use mln_util::image::PremultipliedImage;
-use mln_util::size::Size;
+use mln_style::bitmap::PremultipliedImage;
+use mln_style::geo::{LatLng, LatLngBounds, WrapMode};
+use mln_style::size::Size;
 use serde_json::Value as Json;
 
-use crate::camera::SnapshotCamera;
 use crate::content::{self, Base};
 use crate::model::{
     self, Camera, CameraChange, Click, Command, Content, Event, Inputs, LngLat, Options, Padding, Point, Record,
@@ -46,6 +46,11 @@ use crate::snapshot::{Scene, SnapshotFiles, Snapshotter};
 /// How long a touch stays still to be a long press, in milliseconds: iOS's
 /// `UILongPressGestureRecognizer` default, and about Android's.
 const LONG_PRESS_MS: f64 = 500.0;
+
+/// How far a press may move and still be a click, in logical pixels: the
+/// recognizer's tolerance, for the clicks the engine finds while gestures
+/// don't move the map.
+const CLICK_TOLERANCE: f64 = 3.0;
 
 /// The longest side of a snapshot, in points.
 const SNAPSHOT_SIDE: u32 = 4096;
@@ -98,17 +103,19 @@ pub struct Engine {
     /// The map's events, which the runtime's thread hands over.
     events: Arc<Mutex<Vec<MapEvent>>>,
     snapshot: MapSnapshot,
-    gestures: GestureRecognizer,
+    gestures: GestureRecognizer<mln_runtime::Map>,
+    /// Whether wheels and trackpads zoom the map.
+    scroll_zoom: bool,
     /// Pointers down on the map.
     pointers: u32,
-    /// The pointers down that haven't moved, for long presses, and for
-    /// clicks while gestures don't move the map.
+    /// The pointers down that haven't moved, for long presses and clicks
+    /// while gestures don't move the map.
     presses: Vec<Press>,
+    /// The pointers whose last press was the secondary mouse button, whose
+    /// taps open a context menu.
+    secondary: Vec<u32>,
     /// Clicks the surface found itself, each a click or a context menu.
     clicks: Vec<(ScreenCoordinate, Event)>,
-    /// How many of the recognizer's coming clicks end long presses, which
-    /// were context menus already.
-    long_pressed: u32,
     /// Clicks whose features the session is finding.
     asked: Vec<Asked>,
     /// A `fitBounds` whose camera the map is finding.
@@ -191,7 +198,7 @@ struct Press {
 struct Asked {
     event: Event,
     click: Click,
-    query: Option<Completion<Vec<mln_util::feature::Feature>>>,
+    query: Option<Completion<Vec<mln_engine::tile::feature::Feature>>>,
     zooms: Vec<(usize, Completion<u8>)>,
 }
 
@@ -223,7 +230,12 @@ impl Engine {
         let offline_updates = Arc::new(Mutex::new(Vec::new()));
         let Viewport { size, scale } = viewport;
         let options = MapOptions {
-            map: mln_map::MapOptions { size, pixel_ratio: scale, map_mode: MapMode::Continuous, ..Default::default() },
+            map: mln_engine::map::MapOptions {
+                size,
+                pixel_ratio: scale,
+                map_mode: MapMode::Continuous,
+                ..Default::default()
+            },
             event_mask: EventMask::ALL_MAP_EVENTS,
             ..Default::default()
         };
@@ -252,6 +264,7 @@ impl Engine {
         let mut engine = Engine {
             session,
             driver,
+            gestures: GestureRecognizer::new(map.clone()),
             map,
             runtime,
             drawn: false,
@@ -260,11 +273,11 @@ impl Engine {
             demands: 0,
             events,
             snapshot,
-            gestures: GestureRecognizer::default(),
+            scroll_zoom: true,
             pointers: 0,
             presses: Vec::new(),
+            secondary: Vec::new(),
             clicks: Vec::new(),
-            long_pressed: 0,
             asked: Vec::new(),
             fit: None,
             rest: inputs.camera,
@@ -390,18 +403,20 @@ impl Engine {
         if let Err(e) = self.map.set_bounds(limits) {
             self.error = Some(format!("maplibre: options: {}", e.message));
         }
-        let gestures = GestureOptions::default()
-            .rotate(options.drag_rotate != Some(false))
-            .pitch(options.pitch_with_rotate != Some(false) && options.touch_pitch != Some(false))
-            .scroll_zoom(options.scroll_zoom != Some(false));
-        self.gestures.set_options(gestures);
+        let mut gestures = GestureOptions::default();
+        gestures.bearing.enabled = options.drag_rotate != Some(false);
+        gestures.pitch.enabled = options.pitch_with_rotate != Some(false) && options.touch_pitch != Some(false);
+        if let Err(e) = self.gestures.set_options(gestures) {
+            self.error = Some(format!("maplibre: options: {e}"));
+        }
+        self.scroll_zoom = options.scroll_zoom != Some(false);
     }
 
     /// Counts the pointers down on the map, and follows those that stay in
-    /// place, for long presses, and, while gestures don't move the map and so
-    /// report none, for clicks. Returns whether it found a click. The host
-    /// hands the same pointers to [`gesture`](Self::gesture) too, while the
-    /// map is interactive.
+    /// place, for long presses and clicks while gestures don't move the map
+    /// and so report none. Returns whether it found a click. The host hands
+    /// the same pointers to [`gesture`](Self::gesture) too, while the map is
+    /// interactive.
     pub fn pointer(&mut self, pointer: &Pointer) -> bool {
         let Pointer { id, phase, x, y, touch, secondary, at_ms } = *pointer;
         match phase {
@@ -409,24 +424,27 @@ impl Engine {
             Phase::Up | Phase::Cancel => self.pointers = self.pointers.saturating_sub(1),
             Phase::Move => {}
         }
+        if phase == Phase::Down {
+            self.secondary.retain(|other| *other != id);
+            if secondary {
+                self.secondary.push(id);
+            }
+        }
         let interactive = self.interactive();
         let point = ScreenCoordinate::new(x, y);
-        let tolerance = self.gestures.options().click_tolerance();
         let index = self.presses.iter().position(|press| press.id == id);
         match (phase, index) {
             (Phase::Down, _) => self.presses.push(Press { id, at: point, since: at_ms, touch, secondary, long: false }),
             (Phase::Move, Some(index)) => {
                 let press = &self.presses[index];
-                if (press.at.x - point.x).hypot(press.at.y - point.y) > tolerance {
+                if (press.at.x - point.x).hypot(press.at.y - point.y) > CLICK_TOLERANCE {
                     self.presses.remove(index);
                 }
             }
             (Phase::Up, Some(index)) => {
                 let press = self.presses.remove(index);
-                let still = (press.at.x - point.x).hypot(press.at.y - point.y) <= tolerance;
-                if press.long {
-                    self.long_pressed += u32::from(interactive);
-                } else if still && !interactive {
+                let still = (press.at.x - point.x).hypot(press.at.y - point.y) <= CLICK_TOLERANCE;
+                if still && !press.long && !interactive {
                     self.clicks.push((point, if press.secondary { Event::Contextmenu } else { Event::Click }));
                     return true;
                 }
@@ -453,17 +471,21 @@ impl Engine {
 
     /// Hands `input` at `at_ms` to the gestures, which move the map from its
     /// latest snapshot. Returns whether they did anything.
-    pub fn gesture(&mut self, input: mln_gestures::Input, at_ms: f64) -> bool {
+    pub fn gesture(&mut self, mut input: Input, at_ms: f64) -> bool {
+        if let Input::Delta { zoom, .. } = &mut input
+            && !self.scroll_zoom
+        {
+            *zoom = 0.0;
+        }
         self.set_frame_time(at_ms);
-        self.refresh();
-        let Some((state, projection)) = view_of(&self.snapshot.view) else { return false };
-        let mut camera = SnapshotCamera { map: &self.map, state: &state, projection: &projection };
-        self.gestures.handle(&mut camera, input, at_ms)
+        self.gestures.handle(input, at_ms)
     }
 
-    /// Turns a touch held still, alone, into a context menu.
+    /// Turns a touch held still, alone, into a context menu, while gestures
+    /// don't move the map; the recognizer finds long presses otherwise.
     fn long_press(&mut self, now_ms: f64) {
-        if let [press] = self.presses.as_mut_slice()
+        if !self.interactive()
+            && let [press] = self.presses.as_mut_slice()
             && press.touch
             && !press.long
             && now_ms - press.since >= LONG_PRESS_MS
@@ -561,12 +583,11 @@ impl Engine {
     /// the content's images decoded so far.
     fn start_snapshot(&mut self, decoded: &HashMap<String, PremultipliedImage>, events: &mut Vec<Event>) {
         let Some((size, pixel_ratio)) = self.snapshot_asked else { return };
-        let Some((state, _)) = view_of(&self.snapshot.view) else { return };
         self.snapshot_asked = None;
         let scene = Scene {
             style: &self.applied.style,
             style_is_document: self.applied.style_is_document(),
-            camera: state.get_camera_options(None),
+            camera: CameraOptions::from(self.snapshot.view.camera),
             content: &self.applied.content,
             images: decoded,
             size,
@@ -639,7 +660,7 @@ impl Engine {
         let [[west, south], [east, north]] = bounds;
         let kept = self.snapshot.view.camera.padding;
         let [top, left, bottom, right] = padding.edges();
-        let total = EdgeInsets::new(kept.top + top, kept.left + left, kept.bottom + bottom, kept.right + right)?;
+        let total = EdgeInsets::new(kept.top + top, kept.left + left, kept.bottom + bottom, kept.right + right);
         let bounds = LatLngBounds::hull(LatLng::new(south, west)?, LatLng::new(north, east)?);
         let options = CameraFitOptions { padding: total, bearing: None, pitch: None };
         let camera = self.map.camera_for(CameraFitArea::Bounds(bounds), options)?;
@@ -680,21 +701,19 @@ impl Engine {
     ) -> bool {
         self.set_frame_time(now_ms);
         self.refresh();
-        if let Some((state, projection)) = view_of(&self.snapshot.view) {
-            let mut camera = SnapshotCamera { map: &self.map, state: &state, projection: &projection };
-            self.animating = self.gestures.frame(&mut camera, now_ms);
-        }
+        // A tick due later, for a long press or the end of deltas, needs
+        // frames until then too.
+        self.animating = self.gestures.tick(now_ms).is_some();
         self.long_press(now_ms);
         let mut clicks = std::mem::take(&mut self.clicks);
         for gesture in self.gestures.take_events() {
-            if let GestureEvent::Click { position, button } = gesture {
-                if self.long_pressed > 0 {
-                    self.long_pressed -= 1;
-                } else if button == mln_gestures::Button::Secondary {
+            match gesture {
+                GestureEvent::Tap { id, position } if self.secondary.contains(&id) => {
                     clicks.push((position, Event::Contextmenu));
-                } else {
-                    clicks.push((position, Event::Click));
                 }
+                GestureEvent::Tap { position, .. } => clicks.push((position, Event::Click)),
+                GestureEvent::LongPress { position, .. } => clicks.push((position, Event::Contextmenu)),
+                _ => {}
             }
         }
         for (position, event) in clicks {
@@ -845,12 +864,9 @@ impl Engine {
 
     /// Asks for what the map shows from `camera`, where it came to rest.
     fn ask_bounds(&mut self, camera: Camera, events: &mut Vec<Event>) {
-        let asked = view_of(&self.snapshot.view)
-            .ok_or(())
-            .and_then(|(state, _)| self.map.lat_lng_bounds_for_camera(state.get_camera_options(None)).map_err(|_| ()));
-        match asked {
+        match self.map.lat_lng_bounds_for_camera(CameraOptions::from(self.snapshot.view.camera)) {
             Ok(bounds) => self.bounding = Some((camera, bounds)),
-            Err(()) => self.rest_at(camera, None, events),
+            Err(_) => self.rest_at(camera, None, events),
         }
     }
 
@@ -1036,8 +1052,7 @@ impl Engine {
     }
 
     fn camera(&self) -> Camera {
-        let Some((state, _)) = view_of(&self.snapshot.view) else { return self.rest };
-        let options = state.get_camera_options(None);
+        let options = CameraOptions::from(self.snapshot.view.camera);
         let center = options.center.unwrap_or_default();
         Camera {
             center: [center.longitude(), center.latitude()],
@@ -1078,14 +1093,9 @@ impl Drop for Engine {
     }
 }
 
-/// The transform state and projection of `view`.
-fn view_of(view: &MapView) -> Option<(TransformState, MapProjection)> {
-    Some((view.to_state().ok()?, MapProjection::from_view(view).ok()?))
-}
-
-fn feature(feature: &mln_util::feature::Feature) -> model::Feature {
+fn feature(feature: &mln_engine::tile::feature::Feature) -> model::Feature {
     use ::feature::{Identifier, Value as FeatureValue};
-    let properties = match mln_conversion::value_to_json(&FeatureValue::Object(feature.properties.clone())) {
+    let properties = match mln_style::conversion::value_to_json(&FeatureValue::Object(feature.properties.clone())) {
         Json::Object(properties) => properties,
         _ => serde_json::Map::new(),
     };
@@ -1134,9 +1144,9 @@ fn camera_options(change: &CameraChange) -> CameraOptions {
         zoom: change.zoom,
         bearing: change.bearing,
         pitch: change.pitch,
-        padding: change.padding.and_then(|padding| {
+        padding: change.padding.map(|padding| {
             let [top, left, bottom, right] = padding.edges();
-            EdgeInsets::new(top, left, bottom, right).ok()
+            EdgeInsets::new(top, left, bottom, right)
         }),
         ..CameraOptions::default()
     }
@@ -1339,8 +1349,8 @@ mod tests {
         // order with the runtime's offline commands, so this one waits for it.
         let _written = map.runtime.offline().regions().map(Completion::wait);
         // The file holds the style, as the app's next run reads it.
-        let mut database = mln_storage::OfflineDatabase::new(crate::cache::tests_file().to_string_lossy());
-        let cached = database.get(&mln_storage::Resource::style(&style));
+        let mut database = mln_engine::storage::OfflineDatabase::new(crate::cache::tests_file().to_string_lossy());
+        let cached = database.get(&mln_engine::storage::Resource::style(&style));
         assert!(cached.is_some_and(|response| response.error.is_none() && !response.no_content));
     }
 
@@ -1432,7 +1442,8 @@ mod tests {
         assert!(posted.contains(&Event::Snapshot));
         assert_eq!((snapshot.width, snapshot.height, snapshot.pixel_ratio), (64, 32, 2.0));
         assert!(snapshot.url.starts_with("data:image/png;base64,"));
-        let png = mln_image::decode_png(map.snapshot_png().unwrap_or_default()).unwrap_or_else(|e| panic!("{e:?}"));
+        let png =
+            mln_engine::image::decode_png(map.snapshot_png().unwrap_or_default()).unwrap_or_else(|e| panic!("{e:?}"));
         assert_eq!((png.size.width, png.size.height), (128, 64));
         // The content's layer, over the style's.
         assert_eq!(&png.data[..4], &[0, 255, 0, 255]);

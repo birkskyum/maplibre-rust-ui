@@ -4,12 +4,12 @@
 //! network. The app names each region, and the name is kept in the region's
 //! metadata.
 
-use mln_runtime::{Completion, EventMask, Runtime};
-use mln_storage::offline::{
+use mln_engine::storage::offline::{
     OfflineRegion, OfflineRegionDefinition, OfflineRegionDownloadState, OfflineRegionStatus,
     OfflineTilePyramidRegionDefinition,
 };
-use mln_util::geo::{LatLng, LatLngBounds};
+use mln_runtime::{Completion, EventMask, Runtime};
+use mln_style::geo::{LatLng, LatLngBounds};
 use serde_json::Value as Json;
 
 use crate::model::{Event, Region, RegionState};
